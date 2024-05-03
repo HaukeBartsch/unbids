@@ -1,6 +1,6 @@
 # un-BIDS
 
-For a lot of A.I. model training the publicly available data on kaggle etc. is useful. Sometimes those data have been converted from DICOM to nii.gz (as in BIDS). Here we try to undo this conversion to get data suitable for the research PACS. As much information is lost in the initial conversion this creates 'ugly' DICOM files.
+For a lot of A.I. model training the publicly available data on kaggle etc. is useful. If the data has been converted to nii.gz (as in BIDS) before sharing we can try to convert back to DICOM (research PACS suitable data). As much information is lost in the initial conversion this creates 'ugly' DICOM files.
 
 ```bash
 > ./uglify -i data/ISLES-2022/sub-strokecase0001 /tmp/bla
