@@ -23,6 +23,8 @@
 
 #include "itkDiscreteGaussianImageFilter.h"
 
+#include "itkOrientImageFilter.h"
+
 #include "gdcmAnonymizer.h"
 #include "gdcmAttribute.h"
 #include "gdcmDataSetHelper.h"
@@ -100,7 +102,100 @@ inline std::string leading_zeros(std::string a, int num) {
   return std::string(num - std::min(num, (int)a.length()), '0') + a;
 }
 
-void convert(json data, std::string nifti_file, std::string output_folder, std::string StudyInstanceUID, std::string frameOfReferenceUID, int SeriesNumber) {
+typedef itk::Image<double, 3>  DWI;
+
+template< class TImageType = DWI >
+std::pair< std::string, typename TImageType::Pointer > GetImageOrientation(const typename TImageType::Pointer inputImage, const std::string &desiredOrientation = "RAI") {
+  if (TImageType::ImageDimension != 3)
+  {
+    std::cerr << "This function is only defined for 3D images.\n";
+    exit(EXIT_FAILURE);
+  }
+  auto orientFilter = itk::OrientImageFilter< TImageType, TImageType >::New();
+  orientFilter->SetInput(inputImage);
+  orientFilter->UseImageDirectionOn();
+  orientFilter->SetDirectionTolerance(0);
+  orientFilter->SetCoordinateTolerance(0);
+
+  auto desiredOrientation_wrap = desiredOrientation;
+  std::transform(desiredOrientation_wrap.begin(), desiredOrientation_wrap.end(), desiredOrientation_wrap.begin(), ::toupper);
+  
+  std::map< std::string, itk::SpatialOrientation::ValidCoordinateOrientationFlags > orientationMap;
+  orientationMap["Axial"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RAI;
+  orientationMap["Coronal"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RSA;
+  orientationMap["Sagittal"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ASL;
+  orientationMap["RIP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RIP;
+  orientationMap["LIP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LIP;
+  orientationMap["RSP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RSP;
+  orientationMap["LSP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LSP;
+  orientationMap["RIA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RIA;
+  orientationMap["LIA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LIA;
+  orientationMap["RSA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RSA;
+  orientationMap["LSA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LSA;
+  orientationMap["IRP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_IRP;
+  orientationMap["ILP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ILP;
+  orientationMap["SRP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SRP;
+  orientationMap["SLP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SLP;
+  orientationMap["IRA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_IRA;
+  orientationMap["ILA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ILA;
+  orientationMap["SRA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SRA;
+  orientationMap["SLA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SLA;
+  orientationMap["RPI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RPI;
+  orientationMap["LPI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LPI;
+  orientationMap["RAI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RAI;
+  orientationMap["LAI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LAI;
+  orientationMap["RPS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RPS;
+  orientationMap["LPS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LPS;
+  orientationMap["RAS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RAS;
+  orientationMap["LAS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LAS;
+  orientationMap["PRI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PRI;
+  orientationMap["PLI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PLI;
+  orientationMap["ARI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ARI;
+  orientationMap["ALI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ALI;
+  orientationMap["PRS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PRS;
+  orientationMap["PLS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PLS;
+  orientationMap["ARS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ARS;
+  orientationMap["ALS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ALS;
+  orientationMap["IPR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_IPR;
+  orientationMap["SPR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SPR;
+  orientationMap["IAR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_IAR;
+  orientationMap["SAR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SAR;
+  orientationMap["IPL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_IPL;
+  orientationMap["SPL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SPL;
+  orientationMap["IAL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_IAL;
+  orientationMap["SAL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SAL;
+  orientationMap["PIR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PIR;
+  orientationMap["PSR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PSR;
+  orientationMap["AIR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_AIR;
+  orientationMap["ASR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ASR;
+  orientationMap["PIL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PIL;
+  orientationMap["PSL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PSL;
+  orientationMap["AIL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_AIL;
+  orientationMap["ASL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ASL;
+
+  // set the desired orientation and update
+  orientFilter->SetDesiredCoordinateOrientation(orientationMap[desiredOrientation_wrap]);
+  orientFilter->Update();
+  auto outputImage = orientFilter->GetOutput();
+
+  std::string originalOrientation;
+
+  for (auto it = orientationMap.begin(); it != orientationMap.end(); ++it)
+  {
+    if (it->second == orientFilter->GetGivenCoordinateOrientation())
+    {
+      originalOrientation = it->first;
+    }
+  }
+  if (originalOrientation.empty())
+  {
+    originalOrientation = "Unknown";
+  }
+
+  return std::make_pair(originalOrientation, outputImage);
+}
+
+void convert(json data, std::string nifti_file, std::string output_folder, std::string identifier, std::string PatientID, std::string EventName, std::string StudyInstanceUID, std::string frameOfReferenceUID, int SeriesNumber, bool isMask) {
   // parse the json structure
   //for (auto& [key, value] : data.items()) {
   //  std::cout << key << " : " << value << "\n";
@@ -110,6 +205,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
   gdcm::UIDGenerator fuid;
   fuid.SetRoot("1.3.6.1.4.1.45037");
   std::string SeriesInstanceUID = fuid.Generate();
+  fprintf(stdout, "\t  StudyInstanceUID: %s\n\t  SeriesInstanceUID: %s [%d]\n\t  %s\n", StudyInstanceUID.c_str(), SeriesInstanceUID.c_str(), SeriesNumber, output_folder.c_str());
 
   // read the image data from the nii.gz or .nii file
   itk::ImageIOBase::Pointer imageIO = itk::ImageIOFactory::CreateImageIO(nifti_file.c_str(), itk::ImageIOFactory::ReadMode);
@@ -122,8 +218,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
   itk::CommonEnums::IOComponent ii= imageIO->GetComponentType();
 
   // we want to use SpacingBetweenSlices 0.712 with ImageOrientationPatient and ImagePositionPatient
-  if (dims == 3 && imageIO->GetComponentType() == imageIO->GetComponentTypeFromString("double")) {
-    typedef itk::Image<double, 3>  DWI;
+  if (dims == 3 /* && imageIO->GetComponentType() == imageIO->GetComponentTypeFromString("double") */) {
     typedef itk::ImageFileReader<DWI> DWIReader;
 
     DWIReader::Pointer dwi_reader = DWIReader::New();
@@ -142,7 +237,36 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
     region.SetSize(size);
     region.SetIndex(start);
 
-    DWI::Pointer dwi = dwi_reader->GetOutput();
+    std::pair< std::string, typename DWI::Pointer > erg = GetImageOrientation(dwi_reader->GetOutput());
+
+
+    DWI::Pointer dwi = erg.second; // dwi_reader->GetOutput();
+
+
+    // if we are not using a mask we should scale the output to a good range
+    float minValue = 0.0;
+    float maxValue = 1.0;
+
+    // compute good min/max values based on cummulative histograms? or use the whole range?
+    // probably best to use the whole range and scale intercept correctly so no data gets lost
+    itk::ImageRegionIterator<DWI> inputIterator3D(dwi, dwi->GetLargestPossibleRegion());
+    inputIterator3D.GoToBegin();
+    bool startD = true;
+    while (!inputIterator3D.IsAtEnd()) {
+      float val = inputIterator3D.Get();
+      if (startD) {
+        minValue = (float)val;
+        maxValue = (float)val;
+        startD = false;
+      } else {
+        if (val < minValue)
+          minValue = (float)val;
+        if (val > maxValue)
+          maxValue = (float)val;
+      }
+      ++inputIterator3D;
+    }
+    fprintf(stdout, "\t  min: %f, max: %f\n", minValue, maxValue);
 
     gdcm::UIDGenerator fuid;
     fuid.SetRoot("1.3.6.1.4.1.45037");
@@ -205,17 +329,32 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       //im->SetTransferSyntax(gdcm::TransferSyntax::ExplicitVRLittleEndian);
       unsigned short *buffer = new unsigned short[size2d[0] * size2d[1] * 2];
       int ii = 0;
+      float intercept = (-(minValue*4096.0)/maxValue) / (1.0 - (minValue/maxValue));
+      float slope = (4096.0 - intercept)/(maxValue);
+      if (isMask) {
+        intercept = 0;
+        slope = 1.0;
+      }
+
 
       inputIterator.GoToBegin();
       outputIterator.GoToBegin();
       while (!inputIterator.IsAtEnd()) {
         float val = inputIterator.Get();
-        buffer[ii++] = (unsigned short)val;
+        // here we should scale the data to min/max of unsigned short and set the intercept and slope values y = mx + b
+        if (!isMask)
+          buffer[ii++] = (unsigned short)( (val-minValue)/(maxValue-minValue) * 4096.0 );
+        else
+          buffer[ii++] = (unsigned short)( val ); // 0 or 1
+
         ++inputIterator;
       }
       gdcm::DataElement pixeldata(gdcm::Tag(0x7fe0, 0x0010));
       pixeldata.SetByteValue((char *)buffer, size2d[0] * size2d[1] * 2);
       im->SetDataElement(pixeldata);
+
+      // map 0 4096 to minValue/maxValue
+
 
       // direction for slices based on ImageOrientationPatient
       float offset_dir[3];
@@ -226,6 +365,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       float b2 = (float)data["ImageOrientationPatient"][4];
       float b3 = (float)data["ImageOrientationPatient"][5];
 
+      // cross-product = normal vector
       offset_dir[0] = (a2 * b3) - (a3 * b2);
       offset_dir[1] = (a3 * b1) - (a1 * b3);
       offset_dir[2] = (a1 * b2) - (a2 * b1);
@@ -240,42 +380,118 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       value << ((float)(data["ImagePositionPatient"][0]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[0])) << "\\" 
             << ((float)(data["ImagePositionPatient"][1]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[1])) << "\\" 
             << ((float)(data["ImagePositionPatient"][2]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[2]));
-      //gdcm::DataElement de2 = gdcm::DataElement(gdcm::Tag(0x0020,0x0032));
-      //std::string val = value.str();
-      //de2.SetByteValue(val.c_str(), val.size());
-      //ds.Insert(de2);
 
-      itk::EncapsulateMetaData<std::string>(dict,"0020|0032", value.str());
+      gdcm::DataElement de3;
+      std::string val("");
 
-      itk::EncapsulateMetaData<std::string>(dict,"0020|000d", StudyInstanceUID);
-      itk::EncapsulateMetaData<std::string>(dict,"0020|000e", SeriesInstanceUID);
-      itk::EncapsulateMetaData<std::string>(dict,"0020|0052", frameOfReferenceUID);
+      //itk::EncapsulateMetaData<std::string>(dict,"0020|0032", value.str());
+      de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x0032));
+      val = zero_pad(value.str());
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
+
+
+      // PatientName
+      de3 = gdcm::DataElement(gdcm::Tag(0x0010,0x0010));
+      val = zero_pad(PatientID);
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
+
+      // PatientID
+      de3 = gdcm::DataElement(gdcm::Tag(0x0010,0x0020));
+      val = zero_pad(PatientID);
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
+
+      // ReferringPhysician
+      de3 = gdcm::DataElement(gdcm::Tag(0x0008,0x0090));
+      val = zero_pad(std::string("EventName:") + EventName);
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
+
+      //itk::EncapsulateMetaData<std::string>(dict,"0020|000d", StudyInstanceUID);
+      de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x000d));
+      val = StudyInstanceUID;
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
+
+      //itk::EncapsulateMetaData<std::string>(dict,"0020|000e", SeriesInstanceUID);
+      de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x000e));
+      val = SeriesInstanceUID;
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
+
+      //itk::EncapsulateMetaData<std::string>(dict,"0020|0052", frameOfReferenceUID);
+      de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x0052));
+      val = frameOfReferenceUID;
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
 
       std::string sopInstanceUID = fuid.Generate();
-      itk::EncapsulateMetaData<std::string>(dict,"0008|0018", sopInstanceUID);
-      itk::EncapsulateMetaData<std::string>(dict,"0002|0003", sopInstanceUID);
+      //itk::EncapsulateMetaData<std::string>(dict,"0008|0018", sopInstanceUID);
+      de3 = gdcm::DataElement(gdcm::Tag(0x0008,0x0018));
+      val = sopInstanceUID;
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
+
+      //itk::EncapsulateMetaData<std::string>(dict,"0002|0003", sopInstanceUID);
+      /*de3 = gdcm::DataElement(gdcm::Tag(0x0002,0x0003));
+      val = zero_pad(sopInstanceUID);
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3); */
 
       value.str("");
       value << f + 1;
+      //itk::EncapsulateMetaData<std::string>(dict,"0020|0013", value.str());
+      de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x0013));
+      val = zero_pad(value.str());
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
 
-      itk::EncapsulateMetaData<std::string>(dict,"0020|0013", value.str());
+
+      de3 = gdcm::DataElement(gdcm::Tag(0x0028,0x1052));
+      val = zero_pad(std::to_string(intercept));
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
+
+
+      //value.str("");
+      //value << std::to_string(intercept);
+      //itk::EncapsulateMetaData<std::string>(dict,"0028|1052", value.str());
+
+      value.str("");
+      value << std::to_string(slope);
+      //itk::EncapsulateMetaData<std::string>(dict,"0028|1053", value.str());
+      de3 = gdcm::DataElement(gdcm::Tag(0x0028,0x1053));
+      val = zero_pad(value.str());
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
+
       // Series Description - Append new description to current series
       // description
       std::string oldSeriesDesc = "";
       value.str("");
-      value << oldSeriesDesc << "uglified";
+      value << oldSeriesDesc << std::string("uglified ") << identifier;
       // This is an long string and there is a 64 character limit in the
       // standard
       unsigned lengthDesc = value.str().length();
       std::string seriesDesc( value.str(), 0,
                               lengthDesc > 64 ? 64
                               : lengthDesc);
-      itk::EncapsulateMetaData<std::string>(dict,"0008|103e", seriesDesc);
+      //itk::EncapsulateMetaData<std::string>(dict,"0008|103e", seriesDesc);
+      de3 = gdcm::DataElement(gdcm::Tag(0x0008,0x103e));
+      val = zero_pad(seriesDesc);
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
 
       // Series Number
       value.str("");
       value << SeriesNumber;
-      itk::EncapsulateMetaData<std::string>(dict,"0020|0011", value.str());
+      //itk::EncapsulateMetaData<std::string>(dict,"0020|0011", value.str());
+      de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x0011));
+      val = zero_pad(value.str());
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
 
       const gdcm::Global& g = gdcm::Global::GetInstance();
       const gdcm::Dicts &dicts = g.GetDicts();
@@ -396,7 +612,7 @@ int main(int argc, char *argv[]) {
 
   command.SetOption("RawData", "i", false, "Folder with nii.gz files and .json files.");
   command.SetOptionLongTag("RawData", "raw-data");
-  command.AddOptionField("RawData", "value", MetaCommand::STRING, false);
+  command.AddOptionField("RawData", "value", MetaCommand::STRING, true);
 
   command.SetOption("MaskData", "m", false, "Folder with nii.gz files representing mask volumes.");
   command.SetOptionLongTag("MaskData", "mask-data");
@@ -493,6 +709,7 @@ int main(int argc, char *argv[]) {
   std::string StudyInstanceUID = fuid.Generate();
   std::string frameOfReferenceUID = fuid.Generate();
   int SeriesCounter = 1;
+  std::string json_dummy_file = "";
 
   // we should start by parsing the image_folders for nii.gz files (and the corresponding .json)
   for (int i = 0; i < image_folders.size(); i++) {
@@ -505,7 +722,10 @@ int main(int argc, char *argv[]) {
           continue; // ignore
         // if we have a .nii.gz or .nii we can start
         std::string identifier("unknown");
+        std::string PatientID("unknown");
+        std::string EventName("unknown");
         std::string json_file = fn;
+        std::string extension = "";
         if (ends_with(fn, ".nii.gz")) {
           std::string f_only = entry.path().filename().string();
           std::vector<std::string> pieces;
@@ -513,7 +733,20 @@ int main(int argc, char *argv[]) {
           if (pieces.size() > 2) {
             identifier = pieces[2]; // something like "adc"
           }
+          if (pieces.size() > 0) {
+            // remove the sub- component if it exists
+            if (pieces[0].substr(0,4) == std::string("sub-")) {
+              PatientID = pieces[0].substr(4, pieces[0].size());
+            }
+          }
+          if (pieces.size() > 1) {
+            // remove the sub- component if it exists
+            if (pieces[1].substr(0,4) == std::string("ses-")) {
+              EventName = pieces[1].substr(4, pieces[1].size());
+            }
+          }
           json_file = json_file.substr(0, json_file.size() - std::string(".nii.gz").size()) + ".json";
+          extension = ".gz";
         } else {
           std::string f_only = entry.path().filename().string();
           std::vector<std::string> pieces;
@@ -521,12 +754,26 @@ int main(int argc, char *argv[]) {
           if (pieces.size() > 2) {
             identifier = pieces[2]; // something like "adc"
           }
+          if (pieces.size() > 0) {
+            // remove the sub- component if it exists
+            if (pieces[0].substr(0,4) == std::string("sub-")) {
+              PatientID = pieces[0].substr(4, pieces[0].size());
+            }
+          }
+          if (pieces.size() > 1) {
+            // remove the sub- component if it exists
+            if (pieces[1].substr(0,4) == std::string("ses-")) {
+              EventName = pieces[1].substr(4, pieces[1].size());
+            }
+          }
           json_file = json_file.substr(0, json_file.size() - std::string(".nii").size()) + ".json";
         }
         // check if that file exists
         if (std::filesystem::is_regular_file(json_file)) {
+          json_dummy_file = json_file; // keep a record of this for the masks
+
           // we found an nii and a corresponding json file
-          fprintf(stdout, "found an nii file and a matching json:\n\t%s\n\t%s\n", fn.c_str(), json_file.c_str() );
+          fprintf(stdout, "found a nii%s file and a matching json:\n\t%s\n\t%s\n", extension.c_str(), fn.c_str(), json_file.c_str() );
 
           // read the json and start processing
           std::ifstream f(json_file);
@@ -538,14 +785,93 @@ int main(int argc, char *argv[]) {
               create_directories(foldername);
           }
 
-          convert(json_data, fn, foldername, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++);
+          convert(json_data, fn, foldername, identifier, PatientID, EventName, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, false);
         }
-
       }
-
     }
   }
 
+  // repeat the same for any mask
+  for (int i = 0; i < mask_folders.size(); i++) {
+    std::string path = mask_folders[i];
+    for (const auto & entry: fs::recursive_directory_iterator(path)) {
+      std::string fn = entry.path().string();
+      if (std::filesystem::is_regular_file(fn)) {
+        // ignore all files that are not .nii or .nii.gz
+        if (!ends_with(fn, ".nii.gz") && !ends_with(fn, ".nii"))
+          continue; // ignore
+        // if we have a .nii.gz or .nii we can start
+        std::string identifier("unknown");
+        std::string PatientID("unknown");
+        std::string EventName("unknown");
+        std::string json_file = fn;
+        std::string extension = "";
+        if (ends_with(fn, ".nii.gz")) {
+          std::string f_only = entry.path().filename().string();
+          std::vector<std::string> pieces;
+          tokenize(f_only.substr(0, f_only.size() - std::string(".nii.gz").size()), '_', pieces);
+          if (pieces.size() > 2) {
+            identifier = pieces[2]; // something like "adc"
+          }
+          if (pieces.size() > 0) {
+            // remove the sub- component if it exists
+            if (pieces[0].substr(0,4) == std::string("sub-")) {
+              PatientID = pieces[0].substr(4, pieces[0].size());
+            }
+          }
+          if (pieces.size() > 1) {
+            // remove the sub- component if it exists
+            if (pieces[1].substr(0,4) == std::string("ses-")) {
+              EventName = pieces[1].substr(4, pieces[1].size());
+            }
+          }
+          json_file = json_file.substr(0, json_file.size() - std::string(".nii.gz").size()) + ".json";
+          extension = ".gz";
+        } else {
+          std::string f_only = entry.path().filename().string();
+          std::vector<std::string> pieces;
+          tokenize(f_only.substr(0, f_only.size() - std::string(".nii").size()), '_', pieces);
+          if (pieces.size() > 2) {
+            identifier = pieces[2]; // something like "adc"
+          }
+          if (pieces.size() > 0) {
+            // remove the sub- component if it exists
+            if (pieces[0].substr(0,4) == std::string("sub-")) {
+              PatientID = pieces[0].substr(4, pieces[0].size());
+            }
+          }
+          if (pieces.size() > 1) {
+            // remove the sub- component if it exists
+            if (pieces[1].substr(0,4) == std::string("ses-")) {
+              EventName = pieces[1].substr(4, pieces[1].size());
+            }
+          }
+          json_file = json_file.substr(0, json_file.size() - std::string(".nii").size()) + ".json";
+        }
+        if (!std::filesystem::is_regular_file(json_file)) {
+          json_file = json_dummy_file;
+        }
+
+        // check if that file exists
+        if (std::filesystem::is_regular_file(json_file)) {
+          // we found an nii and a corresponding json file
+          fprintf(stdout, "found a nii%s file and a matching json:\n\t%s\n\t%s\n", extension.c_str(), fn.c_str(), json_file.c_str() );
+
+          // read the json and start processing
+          std::ifstream f(json_file);
+          json json_data = json::parse(f);
+          // add the identifier as a folder
+          std::string foldername = output + "/" + std::to_string(SeriesCounter) + "_" + identifier + "/";
+          if (!itksys::SystemTools::FileIsDirectory(foldername.c_str())) {
+              // create the output directory
+              create_directories(foldername);
+          }
+          // convert as mask
+          convert(json_data, fn, foldername, identifier, PatientID, EventName, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, true);
+        }
+      }
+    }
+  }
 
 
   if (verbose) {
