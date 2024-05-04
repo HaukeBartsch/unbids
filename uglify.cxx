@@ -106,8 +106,7 @@ typedef itk::Image<double, 3>  DWI;
 
 template< class TImageType = DWI >
 std::pair< std::string, typename TImageType::Pointer > GetImageOrientation(const typename TImageType::Pointer inputImage, const std::string &desiredOrientation = "RAI") {
-  if (TImageType::ImageDimension != 3)
-  {
+  if (TImageType::ImageDimension != 3) {
     std::cerr << "This function is only defined for 3D images.\n";
     exit(EXIT_FAILURE);
   }
@@ -180,15 +179,12 @@ std::pair< std::string, typename TImageType::Pointer > GetImageOrientation(const
 
   std::string originalOrientation;
 
-  for (auto it = orientationMap.begin(); it != orientationMap.end(); ++it)
-  {
-    if (it->second == orientFilter->GetGivenCoordinateOrientation())
-    {
+  for (auto it = orientationMap.begin(); it != orientationMap.end(); ++it) {
+    if (it->second == orientFilter->GetGivenCoordinateOrientation()) {
       originalOrientation = it->first;
     }
   }
-  if (originalOrientation.empty())
-  {
+  if (originalOrientation.empty()) {
     originalOrientation = "Unknown";
   }
 
@@ -390,6 +386,13 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       de3.SetByteValue(val.c_str(), val.size());
       ds.Insert(de3);
 
+      value.str("");
+      value << (f * (float)data["SpacingBetweenSlices"]);
+      // itk::EncapsulateMetaData<std::string>(*dict,"0020|1041", value.str());
+      de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x1041));
+      val = zero_pad(value.str());
+      de3.SetByteValue(val.c_str(), val.size());
+      ds.Insert(de3);
 
       // PatientName
       de3 = gdcm::DataElement(gdcm::Tag(0x0010,0x0010));
@@ -570,7 +573,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
 
       // now save this image slice to a file in the output directory
       //using WriterType = itk::ImageFileWriter<ImageType>;
-      std::string output_fname = output_folder + std::string("/image_") + leading_zeros(std::to_string(f),4) + std::string(".dcm");
+      std::string output_fname = output_folder + std::string("/image_") + identifier + std::string("_") + leading_zeros(std::to_string(f),4) + std::string(".dcm");
 
       gdcm::ImageWriter w;
       w.SetImage(*im);
