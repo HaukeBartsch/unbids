@@ -505,6 +505,8 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
 
         gdcm::Tag t;
         gdcm::DictEntry ent = pubdict.GetDictEntryByKeyword(key.c_str(), t); // slow
+        if (ent.GetName() == std::string(""))
+          continue;
         gdcm::DataElement de = gdcm::DataElement(gdcm::Tag(t.GetGroup(),t.GetElement()));
 
         // test if value is a float or string
