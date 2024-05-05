@@ -191,7 +191,7 @@ std::pair< std::string, typename TImageType::Pointer > GetImageOrientation(const
   return std::make_pair(originalOrientation, outputImage);
 }
 
-void convert(json data, std::string nifti_file, std::string output_folder, std::string identifier, std::string PatientID, std::string EventName, std::string StudyInstanceUID, std::string frameOfReferenceUID, int SeriesNumber, bool isMask) {
+void convert(json data, std::string nifti_file, std::string output_folder, std::string identifier, std::string StudyInstanceUID, std::string frameOfReferenceUID, int SeriesNumber, bool isMask) {
   // parse the json structure
   //for (auto& [key, value] : data.items()) {
   //  std::cout << key << " : " << value << "\n";
@@ -351,66 +351,69 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
 
       // map 0 4096 to minValue/maxValue
 
-
-      // direction for slices based on ImageOrientationPatient
-      float offset_dir[3];
-      float a1 = (float)data["ImageOrientationPatient"][0];
-      float a2 = (float)data["ImageOrientationPatient"][1];
-      float a3 = (float)data["ImageOrientationPatient"][2];
-      float b1 = (float)data["ImageOrientationPatient"][3];
-      float b2 = (float)data["ImageOrientationPatient"][4];
-      float b3 = (float)data["ImageOrientationPatient"][5];
-
-      // cross-product = normal vector
-      offset_dir[0] = (a2 * b3) - (a3 * b2);
-      offset_dir[1] = (a3 * b1) - (a1 * b3);
-      offset_dir[2] = (a1 * b2) - (a2 * b1);
-      float len = sqrt((offset_dir[0]*offset_dir[0]) + (offset_dir[1]*offset_dir[1]) + (offset_dir[2]*offset_dir[2]));
-      offset_dir[0] /= len;
-      offset_dir[1] /= len;
-      offset_dir[2] /= len;
-
-      // set ImagePositionPatient
-      std::ostringstream value;
-      value.str("");
-      value << ((float)(data["ImagePositionPatient"][0]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[0])) << "\\" 
-            << ((float)(data["ImagePositionPatient"][1]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[1])) << "\\" 
-            << ((float)(data["ImagePositionPatient"][2]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[2]));
-
       gdcm::DataElement de3;
+      std::ostringstream value;
       std::string val("");
 
-      //itk::EncapsulateMetaData<std::string>(dict,"0020|0032", value.str());
-      de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x0032));
-      val = zero_pad(value.str());
-      de3.SetByteValue(val.c_str(), val.size());
-      ds.Insert(de3);
+      // direction for slices based on ImageOrientationPatient
+      if (data.contains("ImageOrientationPatient")) {
+        float offset_dir[3];
+        float a1 = (float)data["ImageOrientationPatient"][0];
+        float a2 = (float)data["ImageOrientationPatient"][1];
+        float a3 = (float)data["ImageOrientationPatient"][2];
+        float b1 = (float)data["ImageOrientationPatient"][3];
+        float b2 = (float)data["ImageOrientationPatient"][4];
+        float b3 = (float)data["ImageOrientationPatient"][5];
 
-      value.str("");
-      value << (f * (float)data["SpacingBetweenSlices"]);
-      // itk::EncapsulateMetaData<std::string>(*dict,"0020|1041", value.str());
-      de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x1041));
-      val = zero_pad(value.str());
-      de3.SetByteValue(val.c_str(), val.size());
-      ds.Insert(de3);
+        // cross-product = normal vector
+        offset_dir[0] = (a2 * b3) - (a3 * b2);
+        offset_dir[1] = (a3 * b1) - (a1 * b3);
+        offset_dir[2] = (a1 * b2) - (a2 * b1);
+        float len = sqrt((offset_dir[0]*offset_dir[0]) + (offset_dir[1]*offset_dir[1]) + (offset_dir[2]*offset_dir[2]));
+        offset_dir[0] /= len;
+        offset_dir[1] /= len;
+        offset_dir[2] /= len;
+
+        // set ImagePositionPatient
+        value.str("");
+        value << ((float)(data["ImagePositionPatient"][0]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[0])) << "\\" 
+              << ((float)(data["ImagePositionPatient"][1]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[1])) << "\\" 
+              << ((float)(data["ImagePositionPatient"][2]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[2]));
+
+        //itk::EncapsulateMetaData<std::string>(dict,"0020|0032", value.str());
+        de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x0032));
+        val = zero_pad(value.str());
+        de3.SetByteValue(val.c_str(), val.size());
+        ds.Insert(de3);
+      }
+
+      if (data.contains("SpacingBetweenSlices")) {
+        value.str("");
+        value << (f * (float)data["SpacingBetweenSlices"]);
+        // itk::EncapsulateMetaData<std::string>(*dict,"0020|1041", value.str());
+        de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x1041));
+        val = zero_pad(value.str());
+        de3.SetByteValue(val.c_str(), val.size());
+        ds.Insert(de3);
+      }
 
       // PatientName
-      de3 = gdcm::DataElement(gdcm::Tag(0x0010,0x0010));
-      val = zero_pad(PatientID);
-      de3.SetByteValue(val.c_str(), val.size());
-      ds.Insert(de3);
+      //de3 = gdcm::DataElement(gdcm::Tag(0x0010,0x0010));
+      //val = zero_pad(PatientID);
+      //de3.SetByteValue(val.c_str(), val.size());
+      //ds.Insert(de3);
 
       // PatientID
-      de3 = gdcm::DataElement(gdcm::Tag(0x0010,0x0020));
-      val = zero_pad(PatientID);
-      de3.SetByteValue(val.c_str(), val.size());
-      ds.Insert(de3);
+      //de3 = gdcm::DataElement(gdcm::Tag(0x0010,0x0020));
+      //val = zero_pad(PatientID);
+      //de3.SetByteValue(val.c_str(), val.size());
+      //ds.Insert(de3);
 
       // ReferringPhysician
-      de3 = gdcm::DataElement(gdcm::Tag(0x0008,0x0090));
-      val = zero_pad(std::string("EventName:") + EventName);
-      de3.SetByteValue(val.c_str(), val.size());
-      ds.Insert(de3);
+      //de3 = gdcm::DataElement(gdcm::Tag(0x0008,0x0090));
+      //val = zero_pad(std::string("EventName:") + EventName);
+      //de3.SetByteValue(val.c_str(), val.size());
+      //ds.Insert(de3);
 
       //itk::EncapsulateMetaData<std::string>(dict,"0020|000d", StudyInstanceUID);
       de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x000d));
@@ -587,6 +590,38 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
 
 }
 
+std::string randomHexInt(int N) { 
+    srand(time(0)); 
+
+    int maxSize = 2; 
+    // Stores all the possible characters 
+    // in the Hexadecimal notation 
+    char hexChar[] 
+        = { '0', '1', '2', '3', '4', '5', 
+            '6', '7', '8', '9', 'A', 'B', 
+            'C', 'D', 'E', 'F' }; 
+    std::ostringstream value;
+    value.str("");
+
+    // Loop to print N integers 
+    for (int i = 0; i < N; i++) { 
+  
+        // Randomly select length of the 
+        // int in the range [1, maxSize] 
+        int len = rand() % maxSize + 1; 
+        // first character should not be 0
+
+        // Print len characters 
+        for (int j = 0; j < len; j++) { 
+  
+            // Print a randomly selected 
+            // character 
+            value << hexChar[rand() % 16]; 
+        }  
+    } 
+    return value.str();
+} 
+
 // We would like to call this with a single case. The raw data should come from -i, apply to all files in that folder.
 // The mask data should come from another folder (derivatives).
 // Usage: 
@@ -715,20 +750,24 @@ int main(int argc, char *argv[]) {
   std::string frameOfReferenceUID = fuid.Generate();
   int SeriesCounter = 1;
   std::string json_dummy_file = "";
+  // create an AccessionNumber and a StudyID (16 characters each)
+  // they are shared for all files in this study
+  std::string AccessionNumber = randomHexInt(8);
+  std::string StudyID = randomHexInt(8);
+  std::string PatientID = randomHexInt(8);
+  std::string EventName("unknown");
 
   // we should start by parsing the image_folders for nii.gz files (and the corresponding .json)
   for (int i = 0; i < image_folders.size(); i++) {
     std::string path = image_folders[i];
     for (const auto & entry: fs::recursive_directory_iterator(path)) {
       std::string fn = entry.path().string();
-      if (std::filesystem::is_regular_file(fn)) {
+      if (std::filesystem::is_regular_file(fn)) { // ignore directories
         // ignore all files that are not .nii or .nii.gz
         if (!ends_with(fn, ".nii.gz") && !ends_with(fn, ".nii"))
           continue; // ignore
         // if we have a .nii.gz or .nii we can start
         std::string identifier("unknown");
-        std::string PatientID("unknown");
-        std::string EventName("unknown");
         std::string json_file = fn;
         std::string extension = "";
         if (ends_with(fn, ".nii.gz")) {
@@ -773,7 +812,8 @@ int main(int argc, char *argv[]) {
           }
           json_file = json_file.substr(0, json_file.size() - std::string(".nii").size()) + ".json";
         }
-        // check if that file exists
+        // check if that the json file exists, if not use a dummy json instead
+        json json_data;
         if (std::filesystem::is_regular_file(json_file)) {
           json_dummy_file = json_file; // keep a record of this for the masks
 
@@ -782,16 +822,29 @@ int main(int argc, char *argv[]) {
 
           // read the json and start processing
           std::ifstream f(json_file);
-          json json_data = json::parse(f);
-          // add the identifier as a folder
-          std::string foldername = output + "/" + std::to_string(SeriesCounter) + "_" + identifier + "/";
-          if (!itksys::SystemTools::FileIsDirectory(foldername.c_str())) {
-              // create the output directory
-              create_directories(foldername);
-          }
-
-          convert(json_data, fn, foldername, identifier, PatientID, EventName, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, false);
+          json_data = json::parse(f);
+          // add more tags to the json_data before writing
+          // TODO: check if they exist and only add if not
+          json_data["PatientID"] = PatientID;
+          json_data["PatientName"] = PatientID;
+          json_data["ReferringPhysicianName"] = EventName;
+          json_data["AccessionNumber"] = AccessionNumber;
+          json_data["StudyID"] = StudyID;
+        } else {
+          json_data["PatientID"] = PatientID;
+          json_data["PatientName"] = PatientID;
+          json_data["ReferringPhysicianName"] = EventName;
+          json_data["AccessionNumber"] = AccessionNumber;
+          json_data["StudyID"] = StudyID;          
         }
+        // add the identifier as a folder
+        std::string foldername = output + "/" + PatientID + "/" + EventName + "/" + std::to_string(SeriesCounter) + "_" + identifier + "/";
+        if (!itksys::SystemTools::FileIsDirectory(foldername.c_str())) {
+            // create the output directory
+            create_directories(foldername);
+        }
+
+        convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, false);
       }
     }
   }
@@ -807,8 +860,6 @@ int main(int argc, char *argv[]) {
           continue; // ignore
         // if we have a .nii.gz or .nii we can start
         std::string identifier("unknown");
-        std::string PatientID("unknown");
-        std::string EventName("unknown");
         std::string json_file = fn;
         std::string extension = "";
         if (ends_with(fn, ".nii.gz")) {
@@ -865,18 +916,37 @@ int main(int argc, char *argv[]) {
           // read the json and start processing
           std::ifstream f(json_file);
           json json_data = json::parse(f);
+          json_data["PatientID"] = PatientID;
+          json_data["PatientName"] = PatientID;
+          json_data["ReferringPhysicianName"] = EventName;
+          json_data["AccessionNumber"] = AccessionNumber;
+          json_data["StudyID"] = StudyID;
+
           // add the identifier as a folder
-          std::string foldername = output + "/" + std::to_string(SeriesCounter) + "_" + identifier + "/";
+          std::string foldername = output + "/" + PatientID + "/" + EventName + "/" + std::to_string(SeriesCounter) + "_" + identifier + "/";
           if (!itksys::SystemTools::FileIsDirectory(foldername.c_str())) {
               // create the output directory
               create_directories(foldername);
           }
           // convert as mask
-          convert(json_data, fn, foldername, identifier, PatientID, EventName, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, true);
+          convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, true);
         }
       }
     }
   }
+
+  // check if we have already a tracking file (mapping.json)
+  std::ofstream mapFile;
+  std::string mapping_file = output + "/" + "mapping.csv";
+  if (!itksys::SystemTools::FileExists(mapping_file.c_str(), true)) {
+    // create and add a header
+    mapFile.open(mapping_file);
+    mapFile << "PatientID" << "," << "EventName" << "," << "AccessionNumber" << "," << "StudyID" << std::endl;
+    mapFile.close();
+  }
+  mapFile.open(mapping_file, std::ios_base::app);
+  mapFile << PatientID << "," << EventName << "," << AccessionNumber << "," << StudyID << std::endl;
+  mapFile.close();
 
 
   if (verbose) {
