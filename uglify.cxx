@@ -830,12 +830,12 @@ int main(int argc, char *argv[]) {
           json_data["ReferringPhysicianName"] = EventName;
           json_data["AccessionNumber"] = AccessionNumber;
           json_data["StudyID"] = StudyID;
-        } else {
+        } else {          
           json_data["PatientID"] = PatientID;
           json_data["PatientName"] = PatientID;
           json_data["ReferringPhysicianName"] = EventName;
           json_data["AccessionNumber"] = AccessionNumber;
-          json_data["StudyID"] = StudyID;          
+          json_data["StudyID"] = StudyID;
         }
         // add the identifier as a folder
         std::string foldername = output + "/" + PatientID + "/" + EventName + "/" + std::to_string(SeriesCounter) + "_" + identifier + "/";
@@ -904,33 +904,40 @@ int main(int argc, char *argv[]) {
           }
           json_file = json_file.substr(0, json_file.size() - std::string(".nii").size()) + ".json";
         }
-        if (!std::filesystem::is_regular_file(json_file)) {
+        if (!std::filesystem::is_regular_file(json_file) && std::filesystem::is_regular_file(json_dummy_file)) {
           json_file = json_dummy_file;
         }
 
-        // check if that file exists
+        json json_data;
+        // check if that the file exists
         if (std::filesystem::is_regular_file(json_file)) {
           // we found an nii and a corresponding json file
           fprintf(stdout, "found a nii%s file and a matching json:\n\t%s\n\t%s\n", extension.c_str(), fn.c_str(), json_file.c_str() );
 
           // read the json and start processing
           std::ifstream f(json_file);
-          json json_data = json::parse(f);
+          json_data = json::parse(f);
           json_data["PatientID"] = PatientID;
           json_data["PatientName"] = PatientID;
           json_data["ReferringPhysicianName"] = EventName;
           json_data["AccessionNumber"] = AccessionNumber;
           json_data["StudyID"] = StudyID;
-
-          // add the identifier as a folder
-          std::string foldername = output + "/" + PatientID + "/" + EventName + "/" + std::to_string(SeriesCounter) + "_" + identifier + "/";
-          if (!itksys::SystemTools::FileIsDirectory(foldername.c_str())) {
-              // create the output directory
-              create_directories(foldername);
-          }
-          // convert as mask
-          convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, true);
+        } else {
+          json_data["PatientID"] = PatientID;
+          json_data["PatientName"] = PatientID;
+          json_data["ReferringPhysicianName"] = EventName;
+          json_data["AccessionNumber"] = AccessionNumber;
+          json_data["StudyID"] = StudyID;
         }
+
+        // add the identifier as a folder
+        std::string foldername = output + "/" + PatientID + "/" + EventName + "/" + std::to_string(SeriesCounter) + "_" + identifier + "/";
+        if (!itksys::SystemTools::FileIsDirectory(foldername.c_str())) {
+            // create the output directory
+            create_directories(foldername);
+        }
+        // convert as mask
+        convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, true);        
       }
     }
   }
