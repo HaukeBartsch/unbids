@@ -341,6 +341,10 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
         intercept = 0;
         slope = 1.0;
       }
+      // what to do if the slope is too small?
+      if (slope < 0.001) {
+        slope *= 1000;
+      }
 
 
       inputIterator.GoToBegin();
@@ -385,7 +389,8 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
         offset_dir[2] /= len;
 
         // set ImagePositionPatient
-        
+        if (!data.contains("SpacingBetweenSlices"))
+          data["SpacingBetweenSlices"] = 1.0;
         float v1 = ((float)(InputImagePositionPatient[0]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[0]));
         float v2 = ((float)(InputImagePositionPatient[1]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[1]));
         float v3 = ((float)(InputImagePositionPatient[2]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[2]));
@@ -607,6 +612,8 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
               de.SetValue( locde.GetValue() );
               de.SetVR( entry.GetVR() );
             }
+          } else {
+            fprintf(stdout, "Error: cannto write this type.\n");
           }
 
           //std::string val = "";
@@ -930,6 +937,7 @@ int main(int argc, char *argv[]) {
           json_data["AccessionNumber"] = AccessionNumber;
           json_data["StudyID"] = StudyID;
         } else {          
+          fprintf(stdout, "found a nii%s file:\n\t%s\n", extension.c_str(), fn.c_str());
           json_data["PatientID"] = PatientID;
           json_data["PatientName"] = PatientID;
           json_data["ReferringPhysicianName"] = EventName;
