@@ -275,7 +275,16 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
     //
 
     using ImageType = itk::Image< unsigned short, 2 >;
-
+    auto InputImagePositionPatient = json::array();
+    if (data.contains("ImagePositionPatient")) {
+       InputImagePositionPatient.push_back(data["ImagePositionPatient"][0]);
+       InputImagePositionPatient.push_back(data["ImagePositionPatient"][1]);
+       InputImagePositionPatient.push_back(data["ImagePositionPatient"][2]);
+    } else {
+       InputImagePositionPatient.push_back(0);
+       InputImagePositionPatient.push_back(0);
+       InputImagePositionPatient.push_back(0);
+    }
     for (int f = 0; f < size[2]; f++) { // for each image
       using ImageIOType = itk::GDCMImageIO;
       auto dicomIO = ImageIOType::New(); // we set dictionary values in this dicomIO and add it in the writer
@@ -325,8 +334,9 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       //im->SetTransferSyntax(gdcm::TransferSyntax::ExplicitVRLittleEndian);
       unsigned short *buffer = new unsigned short[size2d[0] * size2d[1] * 2];
       int ii = 0;
-      float intercept = (-(minValue*4096.0)/maxValue) / (1.0 - (minValue/maxValue));
-      float slope = (4096.0 - intercept)/(maxValue);
+      float tmp = (-(minValue*4096.0)/maxValue) / (1.0 - (minValue/maxValue));
+      float slope = 1.0/((4096.0 - tmp)/(maxValue));
+      float intercept = minValue;
       if (isMask) {
         intercept = 0;
         slope = 1.0;
@@ -375,27 +385,31 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
         offset_dir[2] /= len;
 
         // set ImagePositionPatient
-        value.str("");
-        value << ((float)(data["ImagePositionPatient"][0]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[0])) << "\\" 
-              << ((float)(data["ImagePositionPatient"][1]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[1])) << "\\" 
-              << ((float)(data["ImagePositionPatient"][2]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[2]));
+        
+        float v1 = ((float)(InputImagePositionPatient[0]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[0]));
+        float v2 = ((float)(InputImagePositionPatient[1]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[1]));
+        float v3 = ((float)(InputImagePositionPatient[2]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[2]));
+        data["ImagePositionPatient"] = json::array();
+        data["ImagePositionPatient"].push_back(v1);
+        data["ImagePositionPatient"].push_back(v2);
+        data["ImagePositionPatient"].push_back(v3);
 
         //itk::EncapsulateMetaData<std::string>(dict,"0020|0032", value.str());
-        de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x0032));
-        val = zero_pad(value.str());
-        de3.SetByteValue(val.c_str(), val.size());
-        ds.Insert(de3);
+        //de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x0032));
+        //val = zero_pad(value.str());
+        //de3.SetByteValue(val.c_str(), val.size());
+        //ds.Insert(de3);
       }
 
-      if (data.contains("SpacingBetweenSlices")) {
-        value.str("");
-        value << (f * (float)data["SpacingBetweenSlices"]);
-        // itk::EncapsulateMetaData<std::string>(*dict,"0020|1041", value.str());
-        de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x1041));
-        val = zero_pad(value.str());
-        de3.SetByteValue(val.c_str(), val.size());
-        ds.Insert(de3);
-      }
+      //if (data.contains("SpacingBetweenSlices")) {
+      //  value.str("");
+      //  value << (f * (float)data["SpacingBetweenSlices"]);
+      //  // itk::EncapsulateMetaData<std::string>(*dict,"0020|1041", value.str());
+      //  de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x1041));
+      //  val = zero_pad(value.str());
+      //  de3.SetByteValue(val.c_str(), val.size());
+      //  ds.Insert(de3);
+      //}
 
       // PatientName
       //de3 = gdcm::DataElement(gdcm::Tag(0x0010,0x0010));
@@ -506,8 +520,8 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       // parse the json data and add as new tags before writing
       for (auto& [key, value] : data.items()) {
 
-        if (key == "ImagePositionPatient")
-          continue; // ignore, its already set above
+        //if (key == "ImagePositionPatient")
+        //  continue; // ignore, its already set above
 
         gdcm::Tag t;
         gdcm::DictEntry ent = pubdict.GetDictEntryByKeyword(key.c_str(), t); // slow
@@ -520,9 +534,36 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
           std::string val = zero_pad(std::string(value));
           de.SetByteValue(val.c_str(), val.size());
         } else if (value.type() == nlohmann:: detail::value_t::number_float) {
-          std::string val = std::to_string((float)value);
-          val = zero_pad(val);
-          de.SetByteValue(val.c_str(), val.size());
+          // this is likely a VR::FD so we need to create such a field
+          // see https://github.com/malaterre/GDCM/blob/master/Source/MediaStorageAndFileFormat/gdcmJSON.cxx
+          //std::string val = std::to_string((float)value);
+          //val = zero_pad(val);
+          //de.SetByteValue(val.c_str(), val.size());
+          gdcm::DataElement locde;
+          const gdcm::DictEntry &entry = dicts.GetDictEntry(de.GetTag());
+          if (entry.GetVR() == gdcm::VR::FD) { // doubles
+            gdcm::Element<gdcm::VR::FD,gdcm::VM::VM1_n> el;
+            const int vrsizeof = (entry.GetVR() == gdcm::VR::INVALID ? 0 : entry.GetVR().GetSizeof());
+            el.SetLength( 1 * vrsizeof );
+            const double v = (double)value;
+            el.SetValue(v, 0);
+            locde = el.GetAsDataElement();
+            if (!locde.IsEmpty()) {
+              de.SetValue( locde.GetValue() );
+              de.SetVR( entry.GetVR() );
+            }
+          } else if (entry.GetVR() == gdcm::VR::DS) {
+            gdcm::Element<gdcm::VR::DS,gdcm::VM::VM1_n> el;
+            const int vrsizeof = (entry.GetVR() == gdcm::VR::INVALID ? 0 : entry.GetVR().GetSizeof());
+            el.SetLength( 1 * vrsizeof );
+            const double v = (double)value;
+            el.SetValue(v);
+            locde = el.GetAsDataElement();
+            if (!locde.IsEmpty()) {
+              de.SetValue( locde.GetValue() );
+              de.SetVR( entry.GetVR() );
+            }
+          }
         } else if (value.type() == nlohmann:: detail::value_t::number_integer) {
           std::string val = std::to_string((int)value);
           val = zero_pad(val);
@@ -538,17 +579,74 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
         } else if (value.type() == nlohmann::detail::value_t::array && 
                  std::all_of(value.begin(), value.end(), [](const json& el){ return el.is_number_float(); })) {
           std::vector<float> ar = value;
-          std::string val = "";
-          for (int i = 0; i < ar.size(); i++) {
-            val += std::to_string(ar[i]);
-            if (i < ar.size()-1)
-              val += "\\\\";
+          gdcm::DataElement locde;
+          const gdcm::DictEntry &entry = dicts.GetDictEntry(de.GetTag());
+          if (entry.GetVR() == gdcm::VR::FD) { // doubles
+            gdcm::Element<gdcm::VR::FD,gdcm::VM::VM1_n> el;
+            const int vrsizeof = (entry.GetVR() == gdcm::VR::INVALID ? 0 : entry.GetVR().GetSizeof());
+            el.SetLength( ar.size() * vrsizeof );
+            for (int i = 0; i < ar.size(); i++) {
+              const double v = (double)ar[i];
+              el.SetValue(v, i);
+            }
+            locde = el.GetAsDataElement();
+            if (!locde.IsEmpty()) {
+              de.SetValue( locde.GetValue() );
+              de.SetVR( entry.GetVR() );
+            }
+          } else if (entry.GetVR() == gdcm::VR::DS) {
+            gdcm::Element<gdcm::VR::DS,gdcm::VM::VM1_n> el;
+            const int vrsizeof = (entry.GetVR() == gdcm::VR::INVALID ? 0 : entry.GetVR().GetSizeof());
+            el.SetLength( ar.size() * vrsizeof );
+            for (int i = 0; i < ar.size(); i++) {
+              const double v = (double)ar[i];
+              el.SetValue(v, i);
+            }
+            locde = el.GetAsDataElement();
+            if (!locde.IsEmpty()) {
+              de.SetValue( locde.GetValue() );
+              de.SetVR( entry.GetVR() );
+            }
           }
-          val = zero_pad(val);
-          de.SetByteValue(val.c_str(), val.size());
+
+          //std::string val = "";
+          //for (int i = 0; i < ar.size(); i++) {
+          //  val += std::to_string(ar[i]);
+          //  if (i < ar.size()-1)
+          //    val += "\\\\";
+          //}
+          //val = zero_pad(val);
+          //de.SetByteValue(val.c_str(), val.size());
         } else if (value.type() == nlohmann::detail::value_t::array && 
                  std::all_of(value.begin(), value.end(), [](const json& el){ return el.is_number_integer(); })) {
           std::vector<int> ar = value;
+          gdcm::DataElement locde;
+          const gdcm::DictEntry &entry = dicts.GetDictEntry(de.GetTag());
+          if (entry.GetVR() == gdcm::VR::US) { // unsigned int as in AcquisitionMatrix
+            gdcm::Element<gdcm::VR::US,gdcm::VM::VM1_n> el;
+            const int vrsizeof = (entry.GetVR() == gdcm::VR::INVALID ? 0 : entry.GetVR().GetSizeof());
+            el.SetLength( ar.size() * vrsizeof );
+            for (int i = 0; i < ar.size(); i++) {
+              const unsigned int v = (unsigned int)ar[i];
+              el.SetValue(v, i);
+            }
+            locde = el.GetAsDataElement();
+            if (!locde.IsEmpty()) {
+              de.SetValue( locde.GetValue() );
+              de.SetVR( entry.GetVR() );
+            }
+          }
+          //std::string val = "";
+          //for (int i = 0; i < ar.size(); i++) {
+          //  val += std::to_string(ar[i]);
+          //  if (i < ar.size()-1)
+          //    val += "\\\\";
+          //}
+          //val = zero_pad(val);
+          //de.SetByteValue(val.c_str(), val.size());
+        } else if (value.type() == nlohmann::detail::value_t::array && 
+                 std::all_of(value.begin(), value.end(), [](const json& el){ return el.is_number_unsigned(); })) {
+          std::vector<unsigned int> ar = value;
           std::string val = "";
           for (int i = 0; i < ar.size(); i++) {
             val += std::to_string(ar[i]);
@@ -557,6 +655,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
           }
           val = zero_pad(val);
           de.SetByteValue(val.c_str(), val.size());
+
         } else if (value.type() == nlohmann::detail::value_t::array && 
                  std::all_of(value.begin(), value.end(), [](const json& el){ return el.is_string(); })) {
           std::vector<std::string> ar = value;
@@ -646,9 +745,9 @@ int main(int argc, char *argv[]) {
   command.SetCategory("image conversion");
   command.AddField("outdir", "Directory for output DICOM images.", MetaCommand::STRING, true);
 
-  command.SetOption("SeriesName", "n", false, "Select series by series name (if more than one series is present).");
-  command.SetOptionLongTag("SeriesName", "seriesname");
-  command.AddOptionField("SeriesName", "seriesname", MetaCommand::STRING, false);
+//  command.SetOption("SeriesName", "n", false, "Select series by series name (if more than one series is present).");
+//  command.SetOptionLongTag("SeriesName", "seriesname");
+//  command.AddOptionField("SeriesName", "seriesname", MetaCommand::STRING, false);
 
   command.SetOption("RawData", "i", false, "Folder with nii.gz files and .json files.");
   command.SetOptionLongTag("RawData", "raw-data");
@@ -662,22 +761,22 @@ int main(int argc, char *argv[]) {
   // allow for interpolation between slices (assumes a single object)
   // instead do this in a separate command (MorphologicalContourInterpolation)
   
-  command.SetOption(
-      "UIDFixed", "u", false,
-      "If enabled identifiers are stable - will not change for a given input. This allows image series to overwrite each other - assuming that the PACS "
-      "supports this overwrite mode. By default the SeriesInstanceUID and SOPInstanceUID values are generated again every time the processing is done.");
-  command.SetOptionLongTag("UIDFixed", "uid-fixed");
+//  command.SetOption(
+//      "UIDFixed", "u", false,
+//      "If enabled identifiers are stable - will not change for a given input. This allows image series to overwrite each other - assuming that the PACS "
+//      "supports this overwrite mode. By default the SeriesInstanceUID and SOPInstanceUID values are generated again every time the processing is done.");
+//  command.SetOptionLongTag("UIDFixed", "uid-fixed");
 
   command.SetOption("Verbose", "v", false, "Print more verbose output");
   command.SetOptionLongTag("Verbose", "verbose");
 
-  command.SetOption("BrightnessContrastLL", "d", false, "Set threshold for brightness / contrast based on cummulative histogram lower limit (percentage dark pixel 0.01).");
-  command.SetOptionLongTag("BrightnessContrastLL", "brightness-contrast-ll");
-  command.AddOptionField("BrightnessContrastLL", "value", MetaCommand::FLOAT, false);
+//  command.SetOption("BrightnessContrastLL", "d", false, "Set threshold for brightness / contrast based on cummulative histogram lower limit (percentage dark pixel 0.01).");
+//  command.SetOptionLongTag("BrightnessContrastLL", "brightness-contrast-ll");
+//  command.AddOptionField("BrightnessContrastLL", "value", MetaCommand::FLOAT, false);
 
-  command.SetOption("BrightnessContrastUL", "b", false, "Set threshold for brightness / contrast based on cummulative histogram upper limit (percentage bright pixel 0.999).");
-  command.SetOptionLongTag("BrightnessContrastUL", "brightness-contrast-ul");
-  command.AddOptionField("BrightnessContrastUL", "value", MetaCommand::FLOAT, false);
+//  command.SetOption("BrightnessContrastUL", "b", false, "Set threshold for brightness / contrast based on cummulative histogram upper limit (percentage bright pixel 0.999).");
+//  command.SetOptionLongTag("BrightnessContrastUL", "brightness-contrast-ul");
+//  command.AddOptionField("BrightnessContrastUL", "value", MetaCommand::FLOAT, false);
 
   if (!command.Parse(argc, argv)) {
     return 1;
@@ -697,46 +796,46 @@ int main(int argc, char *argv[]) {
     mask_folders.push_back(command.GetValueAsString("MaskData", "value"));
   }
 
-  float brightness_contrast_ll = 0.01;
-  float brightness_contrast_ul = 0.999;
-  float brightnesscontrast_ll = brightness_contrast_ll;
-  float brightnesscontrast_ul = brightness_contrast_ul;
-  if (command.GetOptionWasSet("BrightnessContrastLL")) {
-    brightnesscontrast_ll = command.GetValueAsFloat("BrightnessContrastLL", "value");
-    if (brightnesscontrast_ll < 0 || brightnesscontrast_ll > 1.0) {
-      fprintf(stdout, "Warning: lower brightness values not between 0 and 1. Adjusted to 0.01.\n");
-      brightnesscontrast_ll = 0.01;
-    }
-  }
-  if (command.GetOptionWasSet("BrightnessContrastUL")) {
-    brightnesscontrast_ul = command.GetValueAsFloat("BrightnessContrastUL", "value");
-    if (brightnesscontrast_ul < 0 || brightnesscontrast_ul > 1.0) {
-      fprintf(stdout, "Warning: upper brightness values not between 0 and 1. Adjusted to 0.999.\n");
-      brightnesscontrast_ul = 0.999;
-    }
-  }
-  if (brightnesscontrast_ul < brightnesscontrast_ll) {
-    float tmp = brightnesscontrast_ll;
-    brightnesscontrast_ll = brightnesscontrast_ul;
-    brightnesscontrast_ul = tmp;
-  }
-  brightness_contrast_ll = brightnesscontrast_ll;
-  brightness_contrast_ul = brightnesscontrast_ul;
-  if (verbose) {
-    fprintf(stdout, "create report with brightness/contrast setting %.03f %.03f\n", brightness_contrast_ll, brightness_contrast_ul);
-  }
+//  float brightness_contrast_ll = 0.01;
+//  float brightness_contrast_ul = 0.999;
+//  float brightnesscontrast_ll = brightness_contrast_ll;
+//  float brightnesscontrast_ul = brightness_contrast_ul;
+//  if (command.GetOptionWasSet("BrightnessContrastLL")) {
+//    brightnesscontrast_ll = command.GetValueAsFloat("BrightnessContrastLL", "value");
+//    if (brightnesscontrast_ll < 0 || brightnesscontrast_ll > 1.0) {
+//      fprintf(stdout, "Warning: lower brightness values not between 0 and 1. Adjusted to 0.01.\n");
+//      brightnesscontrast_ll = 0.01;
+//    }
+//  }
+//  if (command.GetOptionWasSet("BrightnessContrastUL")) {
+//    brightnesscontrast_ul = command.GetValueAsFloat("BrightnessContrastUL", "value");
+//    if (brightnesscontrast_ul < 0 || brightnesscontrast_ul > 1.0) {
+//      fprintf(stdout, "Warning: upper brightness values not between 0 and 1. Adjusted to 0.999.\n");
+//      brightnesscontrast_ul = 0.999;
+//    }
+//  }
+//  if (brightnesscontrast_ul < brightnesscontrast_ll) {
+//    float tmp = brightnesscontrast_ll;
+//    brightnesscontrast_ll = brightnesscontrast_ul;
+//    brightnesscontrast_ul = tmp;
+//  }
+//  brightness_contrast_ll = brightnesscontrast_ll;
+//  brightness_contrast_ul = brightnesscontrast_ul;
+//  if (verbose) {
+//    fprintf(stdout, "create report with brightness/contrast setting %.03f %.03f\n", brightness_contrast_ll, brightness_contrast_ul);
+//  }
 
-  bool uidFixedFlag = false;
-  if (command.GetOptionWasSet("UIDFixed"))
-    uidFixedFlag = true;
+//  bool uidFixedFlag = false;
+//  if (command.GetOptionWasSet("UIDFixed"))
+//    uidFixedFlag = true;
 
   bool seriesIdentifierFlag = false;
   std::string output = command.GetValueAsString("outdir");
 
-  if (command.GetOptionWasSet("SeriesName"))
-    seriesIdentifierFlag = true;
+//  if (command.GetOptionWasSet("SeriesName"))
+//    seriesIdentifierFlag = true;
 
-  std::string seriesName = command.GetValueAsString("SeriesName", "seriesname");
+//  std::string seriesName = command.GetValueAsString("SeriesName", "seriesname");
 
   // store information in the result json file
   resultJSON["command_line"] = json::array();
