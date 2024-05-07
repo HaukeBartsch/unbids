@@ -263,6 +263,17 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       ++inputIterator3D;
     }
     fprintf(stdout, "\t  min: %f, max: %f\n", minValue, maxValue);
+    if (!data.contains("SmallestImagePixelValue")) {
+      data["SmallestImagePixelValue"] = 0;
+    }
+    if (!data.contains("LargestImagePixelValue")) {
+      data["LargestImagePixelValue"] = 4096;
+    }
+    if (!data.contains("WindowWidth"))
+      data["WindowWidth"] = (4096.0)/2.0;
+    if (!data.contains("WindowCenter"))
+      data["WindowCenter"] = (4096.0)/2.0;
+
 
     gdcm::UIDGenerator fuid;
     fuid.SetRoot("1.3.6.1.4.1.45037");
@@ -291,6 +302,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
 
       itk::MetaDataDictionary &dict = dicomIO->GetMetaDataDictionary();
       ImageType::Pointer image = ImageType::New();
+      
 
       ImageType::IndexType _start;
       _start.Fill(0);
@@ -346,7 +358,6 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
         slope *= 1000;
       }
 
-
       inputIterator.GoToBegin();
       outputIterator.GoToBegin();
       while (!inputIterator.IsAtEnd()) {
@@ -368,6 +379,23 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       gdcm::DataElement de3;
       std::ostringstream value;
       std::string val("");
+
+      // lets switch the SOP Class UID based on the modality
+      if (data.contains("Modality") && data["Modality"] == "CT") {
+        const std::string SOP_CLASS_UID = "0008|0016";
+        const std::string C_UID = "1.2.840.10008.5.1.4.1.1.2";
+        itk::EncapsulateMetaData<std::string>(dict, SOP_CLASS_UID, C_UID);
+      } else if (data.contains("Modality") && data["Modality"] == "US") {
+        const std::string SOP_CLASS_UID = "0008|0016";
+        const std::string C_UID = "1.2.840.10008.5.1.4.1.1.3.1";
+        itk::EncapsulateMetaData<std::string>(dict, SOP_CLASS_UID, C_UID);
+      } else if (data.contains("Modality") && data["Modality"] == "MR") {
+        const std::string SOP_CLASS_UID = "0008|0016";
+        const std::string C_UID = "1.2.840.10008.5.1.4.1.1.4";
+        itk::EncapsulateMetaData<std::string>(dict, SOP_CLASS_UID, C_UID);
+      } else {
+        fprintf(stderr, "unknown modality found, keep default SOP Class UID.\n");
+      }
 
       // direction for slices based on ImageOrientationPatient
       if (data.contains("ImageOrientationPatient")) {
@@ -399,12 +427,18 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
         data["ImagePositionPatient"].push_back(v2);
         data["ImagePositionPatient"].push_back(v3);
 
-        //itk::EncapsulateMetaData<std::string>(dict,"0020|0032", value.str());
+        //value.str("");
+        //value << v1 << "\\" << v2 << "\\" << v3;
+        //itk::EncapsulateMetaData<std::string>(dict,"0020|0032", value.str(), );
         //de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x0032));
         //val = zero_pad(value.str());
         //de3.SetByteValue(val.c_str(), val.size());
         //ds.Insert(de3);
       }
+      if (!data.contains("SpacingBetweenSlices")) {
+        data["SpacingBetweenSlices"] = 1.0;
+      }
+      data["SliceLocation"] = (float)f * (float)data["SpacingBetweenSlices"];
 
       //if (data.contains("SpacingBetweenSlices")) {
       //  value.str("");
@@ -570,9 +604,23 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
             }
           }
         } else if (value.type() == nlohmann:: detail::value_t::number_integer) {
-          std::string val = std::to_string((int)value);
-          val = zero_pad(val);
-          de.SetByteValue(val.c_str(), val.size());
+          //std::string val = std::to_string((int)value);
+          //val = zero_pad(val);
+          //de.SetByteValue(val.c_str(), val.size());
+          gdcm::DataElement locde;
+          const gdcm::DictEntry &entry = dicts.GetDictEntry(de.GetTag());
+          if (entry.GetVR() == gdcm::VR::US_SS) { // unsigned short
+            gdcm::Element<gdcm::VR::US,gdcm::VM::VM1_n> el;
+            const int vrsizeof = (entry.GetVR() == gdcm::VR::INVALID ? 0 : entry.GetVR().GetSizeof());
+            el.SetLength( 1 * vrsizeof );
+            const double v = (double)value;
+            el.SetValue(v, 0);
+            locde = el.GetAsDataElement();
+            if (!locde.IsEmpty()) {
+              de.SetValue( locde.GetValue() );
+              de.SetVR( gdcm::VR::US );
+            }
+          }
         } else if (value.type() == nlohmann:: detail::value_t::number_unsigned) {
           std::string val = std::to_string((unsigned int)value);
           val = zero_pad(val);
@@ -586,7 +634,8 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
           std::vector<float> ar = value;
           gdcm::DataElement locde;
           const gdcm::DictEntry &entry = dicts.GetDictEntry(de.GetTag());
-          if (entry.GetVR() == gdcm::VR::FD) { // doubles
+          if (entry.GetVR() == gdcm::VR::FD && entry.GetVM() == gdcm::VM::VM1_n) { // doubles
+            //gdcm::Element el = entry.GetElement();
             gdcm::Element<gdcm::VR::FD,gdcm::VM::VM1_n> el;
             const int vrsizeof = (entry.GetVR() == gdcm::VR::INVALID ? 0 : entry.GetVR().GetSizeof());
             el.SetLength( ar.size() * vrsizeof );
@@ -596,6 +645,50 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
             }
             locde = el.GetAsDataElement();
             if (!locde.IsEmpty()) {
+              de.SetValue( locde.GetValue() );
+              de.SetVR( entry.GetVR() );
+            }
+          } else if (entry.GetVR() == gdcm::VR::DS && entry.GetVM() == gdcm::VM::VM6) { // doubles
+            //gdcm::Element el = entry.GetElement();
+            gdcm::Element<gdcm::VR::DS,gdcm::VM::VM6> el;
+            const int vrsizeof = (entry.GetVR() == gdcm::VR::INVALID ? 0 : entry.GetVR().GetSizeof());
+            //el.SetLength( ar.size() * vrsizeof );
+            for (int i = 0; i < ar.size(); i++) {
+              const double v = (double)ar[i];
+              el.SetValue(v, i);
+            }
+            locde = el.GetAsDataElement();
+            if (!locde.IsEmpty()) {
+              de.SetValue( locde.GetValue() );
+              de.SetVR( entry.GetVR() );
+              //de.SetVM( entry.GetVM() );
+            }
+          } else if (entry.GetVR() == gdcm::VR::FD && entry.GetVM() == gdcm::VM::VM3) { // doubles
+            //gdcm::Element el = entry.GetElement();
+            gdcm::Element<gdcm::VR::FD,gdcm::VM::VM3> el;
+            const int vrsizeof = (entry.GetVR() == gdcm::VR::INVALID ? 0 : entry.GetVR().GetSizeof());
+            //el.SetLength( ar.size() * vrsizeof );
+            for (int i = 0; i < ar.size(); i++) {
+              const double v = (double)ar[i];
+              el.SetValue(v, i);
+            }
+            locde = el.GetAsDataElement();
+            if (!locde.IsEmpty()) {
+              de.SetValue( locde.GetValue() );
+              de.SetVR( entry.GetVR() );
+            }
+          } else if (entry.GetVR() == gdcm::VR::DS && entry.GetVM() == gdcm::VM::VM3) { // doubles
+            //gdcm::Element el = entry.GetElement();
+            gdcm::Element<gdcm::VR::DS,gdcm::VM::VM3> el;
+            const int vrsizeof = (entry.GetVR() == gdcm::VR::INVALID ? 0 : entry.GetVR().GetSizeof());
+            //el.SetLength( ar.size() * vrsizeof );
+            for (int i = 0; i < ar.size(); i++) {
+              const double v = (double)ar[i];
+              el.SetValue((float)ar[i], i);
+            }
+            locde = el.GetAsDataElement();
+            if (!locde.IsEmpty()) {
+              de.SetVLToUndefined();
               de.SetValue( locde.GetValue() );
               de.SetVR( entry.GetVR() );
             }
