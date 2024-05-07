@@ -343,6 +343,13 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       im->SetPixelFormat(pf);
       im->SetPhotometricInterpretation(gdcm::PhotometricInterpretation::MONOCHROME2); // change_image.GetPhotometricInterpretation());
       im->GetPixelFormat().SetSamplesPerPixel(1);
+      double dirCos[6]={data["ImageOrientationPatient"][0],data["ImageOrientationPatient"][1],data["ImageOrientationPatient"][2],data["ImageOrientationPatient"][3],data["ImageOrientationPatient"][4],data["ImageOrientationPatient"][5]};
+      im->SetDirectionCosines( dirCos );
+      im->SetSpacing(0, dwi->GetSpacing()[0]);
+      im->SetSpacing(1, dwi->GetSpacing()[1]);
+      //double pos[3] = {1, 2, 3};
+      //im->SetOrigin(0,pos);
+
       //im->SetTransferSyntax(gdcm::TransferSyntax::ExplicitVRLittleEndian);
       unsigned short *buffer = new unsigned short[size2d[0] * size2d[1] * 2];
       int ii = 0;
@@ -381,7 +388,8 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       std::string val("");
 
       // lets switch the SOP Class UID based on the modality
-      if (data.contains("Modality") && data["Modality"] == "CT") {
+      // might not be needed because we are setting modality
+/*      if (data.contains("Modality") && data["Modality"] == "CT") {
         const std::string SOP_CLASS_UID = "0008|0016";
         const std::string C_UID = "1.2.840.10008.5.1.4.1.1.2";
         itk::EncapsulateMetaData<std::string>(dict, SOP_CLASS_UID, C_UID);
@@ -395,7 +403,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
         itk::EncapsulateMetaData<std::string>(dict, SOP_CLASS_UID, C_UID);
       } else {
         fprintf(stderr, "unknown modality found, keep default SOP Class UID.\n");
-      }
+      } */
 
       // direction for slices based on ImageOrientationPatient
       if (data.contains("ImageOrientationPatient")) {
@@ -422,10 +430,16 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
         float v1 = ((float)(InputImagePositionPatient[0]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[0]));
         float v2 = ((float)(InputImagePositionPatient[1]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[1]));
         float v3 = ((float)(InputImagePositionPatient[2]) + (f*(float)(data["SpacingBetweenSlices"]) * offset_dir[2]));
-        data["ImagePositionPatient"] = json::array();
-        data["ImagePositionPatient"].push_back(v1);
-        data["ImagePositionPatient"].push_back(v2);
-        data["ImagePositionPatient"].push_back(v3);
+        //data["ImagePositionPatient"] = json::array();
+        //data["ImagePositionPatient"].push_back(v1);
+        //data["ImagePositionPatient"].push_back(v2);
+        //data["ImagePositionPatient"].push_back(v3);
+        // ATTENTION: We set the ImagePositionPatient on gdcm::Image
+        // ATTENTION: We set the ImageOrientationPatient on gdcm::Image (further up)
+        im->SetOrigin(0, v1);
+        im->SetOrigin(1, v2);
+        im->SetOrigin(2, v3);
+        
 
         //value.str("");
         //value << v1 << "\\" << v2 << "\\" << v3;
@@ -559,8 +573,8 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       // parse the json data and add as new tags before writing
       for (auto& [key, value] : data.items()) {
 
-        //if (key == "ImagePositionPatient")
-        //  continue; // ignore, its already set above
+        if (key == "ImagePositionPatient" || key == "ImageOrientationPatient") // ignore these as they are set on gdcm::Image (im->SetDirectionCosines, im->SetOrigin)
+          continue; // ignore, its already set above
 
         gdcm::Tag t;
         gdcm::DictEntry ent = pubdict.GetDictEntryByKeyword(key.c_str(), t); // slow
