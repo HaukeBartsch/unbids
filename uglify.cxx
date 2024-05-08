@@ -343,6 +343,16 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       im->SetPixelFormat(pf);
       im->SetPhotometricInterpretation(gdcm::PhotometricInterpretation::MONOCHROME2); // change_image.GetPhotometricInterpretation());
       im->GetPixelFormat().SetSamplesPerPixel(1);
+      if (!data.contains("ImageOrientationPatient") || data["ImageOrientationPatient"].size() != 6) {
+        data["ImageOrientationPatient"] = json::array();
+        data["ImageOrientationPatient"].push_back(1);
+        data["ImageOrientationPatient"].push_back(0);
+        data["ImageOrientationPatient"].push_back(0);
+        data["ImageOrientationPatient"].push_back(0);
+        data["ImageOrientationPatient"].push_back(1);
+        data["ImageOrientationPatient"].push_back(0);
+      }
+
       double dirCos[6]={data["ImageOrientationPatient"][0],data["ImageOrientationPatient"][1],data["ImageOrientationPatient"][2],data["ImageOrientationPatient"][3],data["ImageOrientationPatient"][4],data["ImageOrientationPatient"][5]};
       im->SetDirectionCosines( dirCos );
       im->SetSpacing(0, dwi->GetSpacing()[0]);
