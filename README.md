@@ -104,11 +104,36 @@ cmake -DCMAKE_BUILD_TYPE=Debug .
 make
 ```
 
-To run a folder like ISLES:
+To convert a folder like ISLES-2022 ([DOI](https://doi.org/10.5281/zenodo.7153326)):
 
 ```bash
-for u in {0..250}; do 
+for u in {1..250}; do 
    a=$(printf '%04d' $u); 
    ./uglify -i data/ISLES-2022/sub-strokecase${a} -m data/ISLES-2022/derivatives/sub-strokecase${a} /tmp/bla/
 done
+```
+
+The resulting directory tree is:
+
+```bash
+/tmp/bla/
+├── mapping.csv
+├── strokecase0001
+│   └── 0001
+│       ├── 1_adc
+│       ├── 2_dwi
+│       ├── 3_FLAIR
+│       └── 4_msk
+...
+```
+
+Each of the sub-directories contains a series of DICOM files.
+
+The 'mapping.csv' contains DICOM identifiers (generated randomly):
+
+```csv
+PatientID,EventName,AccessionNumber,StudyID
+strokecase0001,0001,E594E1ED67,E594E1ED67
+strokecase0002,0001,2FB096749484,2FB096749484
+...
 ```
