@@ -217,6 +217,10 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
 
   itk::CommonEnums::IOComponent ii= imageIO->GetComponentType();
 
+  time_t studydatetime = gdcm::System::FileTime( nifti_file.c_str() );
+  char date[22];
+  gdcm::System::FormatDateTime(date, studydatetime);
+
   // we want to use SpacingBetweenSlices 0.712 with ImageOrientationPatient and ImagePositionPatient
   if (dims == 3 /* && imageIO->GetComponentType() == imageIO->GetComponentTypeFromString("double") */) {
     typedef itk::ImageFileReader<DWI> DWIReader;
@@ -497,6 +501,22 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       //de3.SetByteValue(val.c_str(), val.size());
       //ds.Insert(de3);
 
+      de3 = gdcm::DataElement(gdcm::Tag(0x0008,0x0023)); // ContentDate
+      de3.SetByteValue(date, 8);
+      ds.Insert(de3);
+
+      de3 = gdcm::DataElement(gdcm::Tag(0x0008,0x0033)); // ContentTime
+      de3.SetByteValue(date+8, 6);
+      ds.Insert(de3);
+
+      de3 = gdcm::DataElement(gdcm::Tag(0x0008,0x0020)); // StudyDate
+      de3.SetByteValue(date, 8);
+      ds.Insert(de3);
+
+      de3 = gdcm::DataElement(gdcm::Tag(0x0008,0x0030)); // StudyTime
+      de3.SetByteValue(date+8, 6);
+      ds.Insert(de3);
+
       //itk::EncapsulateMetaData<std::string>(dict,"0020|000d", StudyInstanceUID);
       de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x000d));
       val = StudyInstanceUID;
@@ -600,6 +620,10 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
         // test if value is a float or string
         if (value.type() == nlohmann::detail::value_t::string) {
           std::string val = zero_pad(std::string(value));
+          // de.SetVR( gdcm::Tag(t.GetGroup(),t.GetElement()).GetVR() );
+          if (key == "PatientPosition") { // this is CS VR, does not work if we don't set the right VR on the de
+            de.SetVR( gdcm::Attribute<0x0018,0x5100>::GetVR() );
+          }
           de.SetByteValue(val.c_str(), val.size());
         } else if (value.type() == nlohmann:: detail::value_t::number_float) {
           // this is likely a VR::FD so we need to create such a field
@@ -996,6 +1020,8 @@ int main(int argc, char *argv[]) {
   std::string AccessionNumber = randomHexInt(8);
   std::string StudyID = randomHexInt(8);
   std::string PatientID = randomHexInt(8);
+  std::string StudyDate = "";
+  std::string StudyTime = "";
   std::string EventName("unknown");
 
   // we should start by parsing the image_folders for nii.gz files (and the corresponding .json)
