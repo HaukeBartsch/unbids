@@ -1,5 +1,7 @@
 # un-BIDS
 
+![Example of converted DICOM image with re-created DICOM tags](image.png)
+
 A.I. model training can be done with publicly available data on kaggle etc.. If the data has been converted to nii.gz (as in BIDS) before sharing we can try to convert back to DICOM (research PACS suitable data). As much information is lost in the initial conversion this creates 'ugly' DICOM files.
 
 ```bash
