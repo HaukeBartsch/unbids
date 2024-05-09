@@ -105,6 +105,18 @@ inline std::string leading_zeros(std::string a, int num) {
   return std::string(num - std::min(num, (int)a.length()), '0') + a;
 }
 
+std::string trim(const std::string& str,
+                 const std::string& whitespace = " \t") {
+    const auto strBegin = str.find_first_not_of(whitespace);
+    if (strBegin == std::string::npos)
+        return ""; // no content
+
+    const auto strEnd = str.find_last_not_of(whitespace);
+    const auto strRange = strEnd - strBegin + 1;
+
+    return str.substr(strBegin, strRange); 
+}
+
 typedef itk::Image<double, 3>  DWI;
 
 template< class TImageType = DWI >
@@ -621,9 +633,11 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
         if (value.type() == nlohmann::detail::value_t::string) {
           std::string val = zero_pad(std::string(value));
           // de.SetVR( gdcm::Tag(t.GetGroup(),t.GetElement()).GetVR() );
-          if (key == "PatientPosition") { // this is CS VR, does not work if we don't set the right VR on the de
-            de.SetVR( gdcm::Attribute<0x0018,0x5100>::GetVR() );
-          }
+          const gdcm::DictEntry &entry = dicts.GetDictEntry(de.GetTag());
+          de.SetVR( entry.GetVR() );
+          //if (key == "PatientPosition") { // this is CS VR, does not work if we don't set the right VR on the de
+          //  de.SetVR( gdcm::Attribute<0x0018,0x5100>::GetVR() );
+          //}
           de.SetByteValue(val.c_str(), val.size());
         } else if (value.type() == nlohmann:: detail::value_t::number_float) {
           // this is likely a VR::FD so we need to create such a field
@@ -677,10 +691,14 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
         } else if (value.type() == nlohmann:: detail::value_t::number_unsigned) {
           std::string val = std::to_string((unsigned int)value);
           val = zero_pad(val);
+          const gdcm::DictEntry &entry = dicts.GetDictEntry(de.GetTag());
+          de.SetVR( entry.GetVR() );
           de.SetByteValue(val.c_str(), val.size());
         } else if (value.type() == nlohmann:: detail::value_t::boolean) {
           std::string val = std::to_string((bool)value);
           val = zero_pad(val);
+          const gdcm::DictEntry &entry = dicts.GetDictEntry(de.GetTag());
+          de.SetVR( entry.GetVR() );
           de.SetByteValue(val.c_str(), val.size());
         } else if (value.type() == nlohmann::detail::value_t::array && 
                  std::all_of(value.begin(), value.end(), [](const json& el){ return el.is_number_float(); })) {
@@ -808,18 +826,36 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
           }
           val = zero_pad(val);
           de.SetByteValue(val.c_str(), val.size());
-
         } else if (value.type() == nlohmann::detail::value_t::array && 
                  std::all_of(value.begin(), value.end(), [](const json& el){ return el.is_string(); })) {
           std::vector<std::string> ar = value;
-          std::string val = "";
-          for (int i = 0; i < ar.size(); i++) {
-            val += std::string(ar[i]);
-            if (i < ar.size()-1)
-              val += "\\\\";
+
+          gdcm::DataElement locde;
+          const gdcm::DictEntry &entry = dicts.GetDictEntry(de.GetTag());
+          if (entry.GetVR() == gdcm::VR::CS) { // unsigned int as in AcquisitionMatrix
+            gdcm::Element<gdcm::VR::CS,gdcm::VM::VM2_n> el;
+            const int vrsizeof = (entry.GetVR() == gdcm::VR::INVALID ? 0 : entry.GetVR().GetSizeof());
+            el.SetLength( ar.size() * vrsizeof );
+            for (int i = 0; i < ar.size(); i++) {
+              const std::string v = trim(ar[i]);
+              //v = std::regex_replace(v, std::regex("^ +| +$|( ) +"), "$1");
+              el.SetValue(v, i);
+            }
+            locde = el.GetAsDataElement();
+            if (!locde.IsEmpty()) {
+              de.SetValue( locde.GetValue() );
+              de.SetVR( entry.GetVR() );
+            }
           }
-          val = zero_pad(val);
-          de.SetByteValue(val.c_str(), val.size());
+
+          //std::string val = "";
+          //for (int i = 0; i < ar.size(); i++) {
+          //  val += std::string(ar[i]);
+          //  if (i < ar.size()-1)
+          //    val += "\\";
+          //}
+          //val = zero_pad(val);
+          //de.SetByteValue(val.c_str(), val.size());
         } else { // assume a string
           fprintf(stderr, "Error: unsupported type encountered, ignore key: %s\n", key.c_str());
         }
