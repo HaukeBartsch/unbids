@@ -93,6 +93,8 @@ The ISLES-2022 dataset ([arXiv](https://arxiv.org/abs/2206.06694)) is an example
 
 Most of these tags represent actual DICOM tags (not "dataset"). The goal of this project is to generate new DICOM files that are valid (for a given PACS system) and contain the image data (from the .nii) and the header information (from the json).
 
+Warning: The .nii files may contain not primary image data but derived data such as ADC. The value range of such measures may not conform to the DICOM coding used in this project. All .nii is converted to DICOM by first measuring minimum and maximum values (3D measure). The data is aftewards (linearly) scaled from 0 (minimum value) to 2^12=4096 (maximum value) before its stored as individual DICOM images. 
+
 Warning: This approach is problematic because not all DICOM tags are present in the json file, only the once deemed useful by the original conversion tool (DICOM to .nii + .json) have been included. Our re-created DICOM files will therefore have missing information that might be required for data processing steps like minimally pre-processing. Even worse our generated DICOM files will pretend to be coming from a vendor without following their standard. A tool that tries to process or visualize such DICOM data might produce errors.
 
 ### Build
