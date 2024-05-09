@@ -70,6 +70,9 @@
 namespace fs = std::filesystem;
 
 #include <itkNiftiImageIO.h>
+
+// this was useful in creating this program
+// https://stackoverflow.com/questions/39150074/generating-a-simple-ct-dicom-image-using-gdcm
  
 
 using json = nlohmann::json;
