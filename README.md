@@ -2,7 +2,7 @@
 
 ![Example of converted DICOM image with re-created DICOM tags](image.png)
 
-A.I. model training can be done with publicly available data on kaggle etc.. If the data has been converted to nii.gz (as in BIDS) before sharing we can try to convert back to DICOM (research PACS suitable data). As much information is lost in the initial conversion this creates 'ugly' DICOM files.
+A.I. model training can be done with publicly available data. Image data are originally collected on medical scanners in DICOM format and some projects convert them into NIfTI (.nii, as in BIDS) before sharing. As I want A.I. to happen inside clinics here I try to convert such data back to the clinical DICOM format (research PACS). As much information is lost in the initial conversion this may create 'ugly' DICOM files.
 
 ```bash
 ./uglify -i data/ISLES-2022/sub-strokecase0001 -m data/ISLES-2022/derivatives/sub-strokecase0001 /tmp/bla
@@ -18,7 +18,7 @@ tree -L 3 /tmp/bla
 
 ## Introduction
 
-The ISLES-2022 dataset is an example volumetric medical imaging collection that contains images in the NIfTI format (extensions .nii.gz or .nii). Each .nii file is acompanied with a side-loading javascript object notation (json) text file that contains a single object with key-value pairs. Here an example:
+The ISLES-2022 dataset ([arXiv](https://arxiv.org/abs/2206.06694)) is an example volumetric medical imaging collection that contains images in the NIfTI format (extensions .nii.gz or .nii). Each .nii file is acompanied with a side-loading javascript object notation (json) text file that contains a single object with key-value pairs. Here an example:
 
 ```json
 {
@@ -113,7 +113,7 @@ for u in {1..250}; do
 done
 ```
 
-The resulting directory tree is:
+The resulting directory tree looks like this:
 
 ```bash
 /tmp/bla/
@@ -127,7 +127,7 @@ The resulting directory tree is:
 ...
 ```
 
-Each of the sub-directories contains a series of DICOM files.
+Each of the sub-directories contains an individual series of DICOM files with the SeriesNumber 1, 2, 3, and 4 and a term derived from the NIfTI filename (adc/Apparent Diffusion Coefficient, dwi/Diffusion weighted images, FLAIR, msk/mask). 
 
 The 'mapping.csv' contains DICOM identifiers (generated randomly):
 
