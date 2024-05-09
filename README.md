@@ -104,7 +104,7 @@ cmake -DCMAKE_BUILD_TYPE=Debug .
 make
 ```
 
-To convert a folder like ISLES-2022 ([DOI](https://doi.org/10.5281/zenodo.7153326)):
+To convert a folder like ISLES-2022 ([DOI](https://doi.org/10.5281/zenodo.7153326), [[arXiv](https://arxiv.org/abs/2206.06694)):
 
 ```bash
 for u in {1..250}; do 
