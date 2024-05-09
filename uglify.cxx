@@ -191,7 +191,7 @@ std::pair< std::string, typename TImageType::Pointer > GetImageOrientation(const
   return std::make_pair(originalOrientation, outputImage);
 }
 
-void convert(json data, std::string nifti_file, std::string output_folder, std::string identifier, std::string StudyInstanceUID, std::string frameOfReferenceUID, int SeriesNumber, bool isMask) {
+void convert(json data, std::string nifti_file, std::string output_folder, std::string identifier, std::string StudyInstanceUID, std::string frameOfReferenceUID, int SeriesNumber, bool isMask, bool verbose) {
   // parse the json structure
   //for (auto& [key, value] : data.items()) {
   //  std::cout << key << " : " << value << "\n";
@@ -201,7 +201,8 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
   gdcm::UIDGenerator fuid;
   fuid.SetRoot("1.3.6.1.4.1.45037");
   std::string SeriesInstanceUID = fuid.Generate();
-  fprintf(stdout, "\t  StudyInstanceUID: %s\n\t  SeriesInstanceUID: %s [%d]\n\t  %s\n", StudyInstanceUID.c_str(), SeriesInstanceUID.c_str(), SeriesNumber, output_folder.c_str());
+  if (verbose)
+    fprintf(stdout, "\t  StudyInstanceUID: %s\n\t  SeriesInstanceUID: %s [%d]\n\t  %s\t", StudyInstanceUID.c_str(), SeriesInstanceUID.c_str(), SeriesNumber, output_folder.c_str());
 
   // read the image data from the nii.gz or .nii file
   itk::ImageIOBase::Pointer imageIO = itk::ImageIOFactory::CreateImageIO(nifti_file.c_str(), itk::ImageIOFactory::ReadMode);
@@ -262,7 +263,8 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       }
       ++inputIterator3D;
     }
-    fprintf(stdout, "\t  min: %f, max: %f\n", minValue, maxValue);
+    if (verbose)
+      fprintf(stdout, "[%f..%f]\n", minValue, maxValue);
     if (!data.contains("SmallestImagePixelValue")) {
       data["SmallestImagePixelValue"] = 0;
     }
@@ -910,14 +912,27 @@ int main(int argc, char *argv[]) {
   if (command.GetOptionWasSet("Verbose"))
     verbose = true;
 
+  // TODO: would be nice to support individual files as well, not just directories as input
   std::vector<std::string> image_folders;
   if (command.GetOptionWasSet("RawData")) {
-    image_folders.push_back(command.GetValueAsString("RawData", "value"));
+    std::string tmp = command.GetValueAsString("RawData", "value");
+    if (itksys::SystemTools::FileIsDirectory(tmp.c_str())) {
+      image_folders.push_back(tmp);
+    } else {
+      fprintf(stderr, "Error: raw data argument is not a valid directory [%s]\n", tmp.c_str());
+      exit(-1);
+    }
   }
 
   std::vector<std::string> mask_folders;
   if (command.GetOptionWasSet("MaskData")) {
-    mask_folders.push_back(command.GetValueAsString("MaskData", "value"));
+    std::string tmp = command.GetValueAsString("MaskData", "value");
+    if (itksys::SystemTools::FileIsDirectory(tmp.c_str())) {
+      mask_folders.push_back(tmp);
+    } else {
+      fprintf(stderr, "Error: mask data argument is not a valid directory [%s]\n", tmp.c_str());
+      exit(-1);
+    }  
   }
 
 //  float brightness_contrast_ll = 0.01;
@@ -1041,7 +1056,8 @@ int main(int argc, char *argv[]) {
           json_dummy_file = json_file; // keep a record of this for the masks
 
           // we found an nii and a corresponding json file
-          fprintf(stdout, "found a nii%s file and a matching json:\n\t%s\n\t%s\n", extension.c_str(), fn.c_str(), json_file.c_str() );
+          if (verbose)
+            fprintf(stdout, "%s\n%s\n", fn.c_str(), json_file.c_str() );
 
           // read the json and start processing
           std::ifstream f(json_file);
@@ -1054,7 +1070,8 @@ int main(int argc, char *argv[]) {
           json_data["AccessionNumber"] = AccessionNumber;
           json_data["StudyID"] = StudyID;
         } else {          
-          fprintf(stdout, "found a nii%s file:\n\t%s\n", extension.c_str(), fn.c_str());
+          if (verbose)
+            fprintf(stdout, "%s\n", fn.c_str());
           json_data["PatientID"] = PatientID;
           json_data["PatientName"] = PatientID;
           json_data["ReferringPhysicianName"] = EventName;
@@ -1068,7 +1085,7 @@ int main(int argc, char *argv[]) {
             create_directories(foldername);
         }
 
-        convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, false);
+        convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, false, verbose);
       }
     }
   }
@@ -1136,7 +1153,8 @@ int main(int argc, char *argv[]) {
         // check if that the file exists
         if (std::filesystem::is_regular_file(json_file)) {
           // we found an nii and a corresponding json file
-          fprintf(stdout, "found a nii%s file and a matching json:\n\t%s\n\t%s\n", extension.c_str(), fn.c_str(), json_file.c_str() );
+          if (verbose)
+            fprintf(stdout, "%s\n%s\n", fn.c_str(), json_file.c_str() );
 
           // read the json and start processing
           std::ifstream f(json_file);
@@ -1147,6 +1165,8 @@ int main(int argc, char *argv[]) {
           json_data["AccessionNumber"] = AccessionNumber;
           json_data["StudyID"] = StudyID;
         } else {
+          if (verbose)
+            fprintf(stdout, "%s\n", fn.c_str() );
           json_data["PatientID"] = PatientID;
           json_data["PatientName"] = PatientID;
           json_data["ReferringPhysicianName"] = EventName;
@@ -1161,7 +1181,7 @@ int main(int argc, char *argv[]) {
             create_directories(foldername);
         }
         // convert as mask
-        convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, true);        
+        convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, true, verbose);        
       }
     }
   }
