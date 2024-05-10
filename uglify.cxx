@@ -53,6 +53,7 @@
 #include "itkMultiplyImageFilter.h"
 #include "itkRegionOfInterestImageFilter.h"
 #include "itkScalarImageToCooccurrenceMatrixFilter.h"
+#include "itkExtractImageFilter.h"
 
 #include "itkGDCMImageIO.h"
 
@@ -233,15 +234,15 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
   char date[22];
   gdcm::System::FormatDateTime(date, studydatetime);
 
-  // we want to use SpacingBetweenSlices 0.712 with ImageOrientationPatient and ImagePositionPatient
+  typedef itk::ImageFileReader<DWI> DWIReader;
+  std::vector<DWI::Pointer> volumes; // for a single series, assume time
+  // We might get 4D data here as well. In that case we need to extract individual frames (x,y,z,channel)
   if (dims == 3 /* && imageIO->GetComponentType() == imageIO->GetComponentTypeFromString("double") */) {
-    typedef itk::ImageFileReader<DWI> DWIReader;
-
     DWIReader::Pointer dwi_reader = DWIReader::New();
     dwi_reader->SetFileName(imageIO->GetFileName());
     dwi_reader->Update();
 
-    DWI::RegionType region;
+    /*DWI::RegionType region;
     DWI::IndexType start;
     DWI::SizeType size;
 
@@ -251,13 +252,51 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
     }
 
     region.SetSize(size);
-    region.SetIndex(start);
-
+    region.SetIndex(start); */
+    // do we need that now?
     std::pair< std::string, typename DWI::Pointer > erg = GetImageOrientation(dwi_reader->GetOutput());
 
-
     DWI::Pointer dwi = erg.second; // dwi_reader->GetOutput();
+    volumes.push_back(dwi);
+  } else if (dims == 4) {
+    // so its 4D? the brats data is using X, Y, Z, N (with N = 4)
+    // Can we assume that its always that dimension? Can we assume 
+    // that the smallest N is t?
+    // Extract using the ExtractImageFilter
+    DWIReader::Pointer dwi_reader = DWIReader::New();
+    dwi_reader->SetFileName(imageIO->GetFileName());
+    dwi_reader->Update();
+    DWI::RegionType inputRegion = dwi_reader->GetOutput()->GetLargestPossibleRegion();
 
+    using ExtractFilterType = itk::ExtractImageFilter<DWI, DWI>;
+    auto extractFilter = ExtractFilterType::New();
+
+    DWI::SizeType roi_size = inputRegion.GetSize();
+    int numTs = roi_size[3]; // assume its the 4th dimension
+    for (int t = 0; t < numTs; t++) {
+      roi_size[3] = 0; // collapse this dimension
+      DWI::IndexType roi_start = inputRegion.GetIndex();
+      roi_start[0] = 0;
+      roi_start[1] = 0;
+      roi_start[2] = 0;
+      roi_start[3] = t;
+
+      DWI::RegionType desiredRegion;
+      desiredRegion.SetSize(roi_size);
+      desiredRegion.SetIndex(roi_start);
+      extractFilter->SetInput(dwi_reader->GetOutput());
+      extractFilter->SetExtractionRegion(desiredRegion);
+      extractFilter->Update();
+      volumes.push_back(extractFilter->GetOutput());
+    }
+  } else {
+    fprintf(stderr, "Error: NIfTI is not 3D but %dD.\n", dims);
+  }
+
+  for (int vol = 0; vol < volumes.size(); vol++) {
+    DWI::Pointer dwi = volumes[vol];
+    DWI::RegionType region = dwi->GetLargestPossibleRegion();
+    DWI::SizeType size = region.GetSize();
 
     // if we are not using a mask we should scale the output to a good range
     float minValue = 0.0;
@@ -317,7 +356,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
        InputImagePositionPatient.push_back(0);
        InputImagePositionPatient.push_back(0);
     }
-    for (int f = 0; f < size[2]; f++) { // for each image
+    for (int f = 0; f < size[2]; f++) { // for each slice f, for each volume vol
       using ImageIOType = itk::GDCMImageIO;
       auto dicomIO = ImageIOType::New(); // we set dictionary values in this dicomIO and add it in the writer
 
@@ -561,9 +600,9 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       ds.Insert(de3); */
 
       value.str("");
-      value << f + 1;
+      value << (size[2] * vol) + f + 1; // InstanceNumber
       //itk::EncapsulateMetaData<std::string>(dict,"0020|0013", value.str());
-      de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x0013));
+      de3 = gdcm::DataElement(gdcm::Tag(0x0020,0x0013)); // InstanceNumber
       val = zero_pad(value.str());
       de3.SetByteValue(val.c_str(), val.size());
       ds.Insert(de3);
@@ -864,7 +903,11 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
 
       // now save this image slice to a file in the output directory
       //using WriterType = itk::ImageFileWriter<ImageType>;
-      std::string output_fname = output_folder + std::string("/image_") + identifier + std::string("_") + leading_zeros(std::to_string(f),4) + std::string(".dcm");
+      std::string ts("");
+      if (volumes.size() > 1) {
+        ts = "_" + leading_zeros(std::to_string(vol),2);
+      }
+      std::string output_fname = output_folder + std::string("/image_") + identifier + ts + std::string("_") + leading_zeros(std::to_string(f),4) + std::string(".dcm");
 
       gdcm::ImageWriter w;
       w.SetImage(*im);
@@ -874,7 +917,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
         fprintf(stderr, "ERROR: writing file\n");
       }
     }
-  }
+  } // for volumes
 
 }
 

@@ -18,7 +18,7 @@ tree -L 3 /tmp/bla
 
 ## Introduction
 
-The ISLES-2022 dataset ([arXiv](https://arxiv.org/abs/2206.06694)) is an example volumetric medical imaging collection that contains images in the NIfTI format (extensions .nii.gz or .nii). Each .nii file is acompanied with a side-loading javascript object notation (json) text file that contains a single object with key-value pairs. Here an example:
+The ISLES-2022 dataset ([arXiv](https://arxiv.org/abs/2206.06694)) is an example volumetric medical imaging collection that contains images in the NIfTI format (extensions .nii.gz or .nii). Each .nii file may be acompanied by a side-loading javascript object notation (json) text file that contains a single object with key-value pairs. Here an example:
 
 ```json
 {
@@ -91,7 +91,11 @@ The ISLES-2022 dataset ([arXiv](https://arxiv.org/abs/2206.06694)) is an example
 }
 ```
 
-Most of these tags represent actual DICOM tags (not "dataset"). The goal of this project is to generate new DICOM files that are valid (for a given PACS system) and contain the image data (from the .nii) and the header information (from the json).
+Most of these tags represent actual DICOM tags (not "dataset"). The goal of this project is to generate new DICOM files that are valid (for a given PACS system) and contain the image data (from the .nii) and the header information (from the json). Such side-loading json files may not be present. In those cases we will assume some default settings and do our best.
+
+Notice: If there are several .nii files found in the provided folder the tool will assume that all volumes belong to the same patient and DICOM study. This is only true if your folder really contains such volumes (anat, adc, dwi, ...).
+
+Notice: In case that the NIfTI files contain 4D data the tool assumes that the volume index is the last (4th) dimensional value in the data.
 
 Warning: The .nii files may contain not primary image data but derived data such as ADC. The value range of such measures may not conform to the DICOM coding used in this project. All .nii is converted to DICOM by first measuring minimum and maximum values (3D measure). The data is aftewards (linearly) scaled from 0 (minimum value) to 2^12=4096 (maximum value) before its stored as individual DICOM images. Notice that an ADC volume was probably first generated as part of the imaging session, saved as DICOM in a similar encoding and exported as .nii.
 
