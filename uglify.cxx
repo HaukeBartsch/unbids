@@ -822,7 +822,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
           for (int i = 0; i < ar.size(); i++) {
             val += std::to_string(ar[i]);
             if (i < ar.size()-1)
-              val += "\\\\";
+              val += "\\";
           }
           val = zero_pad(val);
           de.SetByteValue(val.c_str(), val.size());
