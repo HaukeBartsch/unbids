@@ -119,6 +119,7 @@ std::string trim(const std::string& str,
 }
 
 typedef itk::Image<double, 3>  DWI;
+typedef itk::Image<double, 4>  DWI4;
 
 template< class TImageType = DWI >
 std::pair< std::string, typename TImageType::Pointer > GetImageOrientation(const typename TImageType::Pointer inputImage, const std::string &desiredOrientation = "RAI") {
@@ -263,35 +264,46 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
     // Can we assume that its always that dimension? Can we assume 
     // that the smallest N is t?
     // Extract using the ExtractImageFilter
-    DWIReader::Pointer dwi_reader = DWIReader::New();
+    typedef itk::ImageFileReader<DWI4> DWI4Reader;
+
+    DWI4Reader::Pointer dwi_reader = DWI4Reader::New();
     dwi_reader->SetFileName(imageIO->GetFileName());
     dwi_reader->Update();
-    DWI::RegionType inputRegion = dwi_reader->GetOutput()->GetLargestPossibleRegion();
+    DWI4::RegionType inputRegion = dwi_reader->GetOutput()->GetLargestPossibleRegion();
 
-    using ExtractFilterType = itk::ExtractImageFilter<DWI, DWI>;
+    using ExtractFilterType = itk::ExtractImageFilter<DWI4, DWI>;
     auto extractFilter = ExtractFilterType::New();
 
-    DWI::SizeType roi_size = inputRegion.GetSize();
+    extractFilter->SetDirectionCollapseToSubmatrix();
+    DWI4::SizeType roi_size = inputRegion.GetSize();
     int numTs = roi_size[3]; // assume its the 4th dimension
     for (int t = 0; t < numTs; t++) {
       roi_size[3] = 0; // collapse this dimension
-      DWI::IndexType roi_start = inputRegion.GetIndex();
+      DWI4::IndexType roi_start = inputRegion.GetIndex();
       roi_start[0] = 0;
       roi_start[1] = 0;
       roi_start[2] = 0;
       roi_start[3] = t;
 
-      DWI::RegionType desiredRegion;
+      DWI4::RegionType desiredRegion;
       desiredRegion.SetSize(roi_size);
       desiredRegion.SetIndex(roi_start);
       extractFilter->SetInput(dwi_reader->GetOutput());
       extractFilter->SetExtractionRegion(desiredRegion);
       extractFilter->Update();
-      volumes.push_back(extractFilter->GetOutput());
+      DWI::Pointer p = extractFilter->GetOutput();
+      p->DisconnectPipeline(); // remove from the pipeline to get another volume next iteration
+      std::pair< std::string, typename DWI::Pointer > erg = GetImageOrientation(p);
+      DWI::Pointer dwi = erg.second; // dwi_reader->GetOutput();
+      volumes.push_back( p );
     }
   } else {
     fprintf(stderr, "Error: NIfTI is not 3D but %dD.\n", dims);
   }
+
+  //gdcm::UIDGenerator fuid;
+  //fuid.SetRoot("1.3.6.1.4.1.45037");
+  //std::string SeriesInstanceUID = fuid.Generate();
 
   for (int vol = 0; vol < volumes.size(); vol++) {
     DWI::Pointer dwi = volumes[vol];
@@ -335,9 +347,6 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       data["WindowCenter"] = (4096.0)/2.0;
 
 
-    gdcm::UIDGenerator fuid;
-    fuid.SetRoot("1.3.6.1.4.1.45037");
-    std::string SeriesInstanceUID = fuid.Generate();
 
     // 
     // create a series of 2D images and save in output
