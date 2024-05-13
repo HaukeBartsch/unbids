@@ -334,7 +334,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       ++inputIterator3D;
     }
     if (verbose)
-      fprintf(stdout, "[%f..%f]\n", minValue, maxValue);
+      fprintf(stdout, "[%d files, %f..%f]\n", size[2], minValue, maxValue);
     if (!data.contains("SmallestImagePixelValue")) {
       data["SmallestImagePixelValue"] = 0;
     }
@@ -969,6 +969,9 @@ std::string randomHexInt(int N) {
 // Each of the -i nii.gz files will have a corresponding .json. The -m nii.gz file shall borrow its json
 // from a matching volume of -i. 
 
+// TODO: add a -m option to modifiy DICOM tags. This does only make sense if 
+// we can provide it several times (GetValueAsLIST).
+
 int main(int argc, char *argv[]) {
   setlocale(LC_NUMERIC, "en_US.utf-8");
 
@@ -1027,12 +1030,17 @@ int main(int argc, char *argv[]) {
   if (command.GetOptionWasSet("Verbose"))
     verbose = true;
 
-  // TODO: would be nice to support individual files as well, not just directories as input
+  // collect all files found in either -i or in the provided directry
+  std::vector< std::string > image_files;
+  std::vector< std::string > mask_files;
+
   std::vector<std::string> image_folders;
   if (command.GetOptionWasSet("RawData")) {
     std::string tmp = command.GetValueAsString("RawData", "value");
     if (itksys::SystemTools::FileIsDirectory(tmp.c_str())) {
       image_folders.push_back(tmp);
+    } else if (std::filesystem::is_regular_file(tmp.c_str())) {
+      image_files.push_back(tmp);
     } else {
       fprintf(stderr, "Error: raw data argument is not a valid directory [%s]\n", tmp.c_str());
       exit(-1);
@@ -1044,6 +1052,8 @@ int main(int argc, char *argv[]) {
     std::string tmp = command.GetValueAsString("MaskData", "value");
     if (itksys::SystemTools::FileIsDirectory(tmp.c_str())) {
       mask_folders.push_back(tmp);
+    } else if (std::filesystem::is_regular_file(tmp.c_str())) {
+      mask_files.push_back(tmp);
     } else {
       fprintf(stderr, "Error: mask data argument is not a valid directory [%s]\n", tmp.c_str());
       exit(-1);
@@ -1121,90 +1131,93 @@ int main(int argc, char *argv[]) {
         // ignore all files that are not .nii or .nii.gz
         if (!ends_with(fn, ".nii.gz") && !ends_with(fn, ".nii"))
           continue; // ignore
-        // if we have a .nii.gz or .nii we can start
-        std::string identifier("unknown");
-        std::string json_file = fn;
-        std::string extension = "";
-        if (ends_with(fn, ".nii.gz")) {
-          std::string f_only = entry.path().filename().string();
-          std::vector<std::string> pieces;
-          tokenize(f_only.substr(0, f_only.size() - std::string(".nii.gz").size()), '_', pieces);
-          if (pieces.size() > 2) {
-            identifier = pieces[2]; // something like "adc"
-          }
-          if (pieces.size() > 0) {
-            // remove the sub- component if it exists
-            if (pieces[0].substr(0,4) == std::string("sub-")) {
-              PatientID = pieces[0].substr(4, pieces[0].size());
-            }
-          }
-          if (pieces.size() > 1) {
-            // remove the sub- component if it exists
-            if (pieces[1].substr(0,4) == std::string("ses-")) {
-              EventName = pieces[1].substr(4, pieces[1].size());
-            }
-          }
-          json_file = json_file.substr(0, json_file.size() - std::string(".nii.gz").size()) + ".json";
-          extension = ".gz";
-        } else {
-          std::string f_only = entry.path().filename().string();
-          std::vector<std::string> pieces;
-          tokenize(f_only.substr(0, f_only.size() - std::string(".nii").size()), '_', pieces);
-          if (pieces.size() > 2) {
-            identifier = pieces[2]; // something like "adc"
-          }
-          if (pieces.size() > 0) {
-            // remove the sub- component if it exists
-            if (pieces[0].substr(0,4) == std::string("sub-")) {
-              PatientID = pieces[0].substr(4, pieces[0].size());
-            }
-          }
-          if (pieces.size() > 1) {
-            // remove the sub- component if it exists
-            if (pieces[1].substr(0,4) == std::string("ses-")) {
-              EventName = pieces[1].substr(4, pieces[1].size());
-            }
-          }
-          json_file = json_file.substr(0, json_file.size() - std::string(".nii").size()) + ".json";
-        }
-        // check if that the json file exists, if not use a dummy json instead
-        json json_data;
-        if (std::filesystem::is_regular_file(json_file)) {
-          json_dummy_file = json_file; // keep a record of this for the masks
-
-          // we found an nii and a corresponding json file
-          if (verbose)
-            fprintf(stdout, "%s\n%s\n", fn.c_str(), json_file.c_str() );
-
-          // read the json and start processing
-          std::ifstream f(json_file);
-          json_data = json::parse(f);
-          // add more tags to the json_data before writing
-          // TODO: check if they exist and only add if not
-          json_data["PatientID"] = PatientID;
-          json_data["PatientName"] = PatientID;
-          json_data["ReferringPhysicianName"] = EventName;
-          json_data["AccessionNumber"] = AccessionNumber;
-          json_data["StudyID"] = StudyID;
-        } else {          
-          if (verbose)
-            fprintf(stdout, "%s\n", fn.c_str());
-          json_data["PatientID"] = PatientID;
-          json_data["PatientName"] = PatientID;
-          json_data["ReferringPhysicianName"] = EventName;
-          json_data["AccessionNumber"] = AccessionNumber;
-          json_data["StudyID"] = StudyID;
-        }
-        // add the identifier as a folder
-        std::string foldername = output + "/" + PatientID + "/" + EventName + "/" + std::to_string(SeriesCounter) + "_" + identifier + "/";
-        if (!itksys::SystemTools::FileIsDirectory(foldername.c_str())) {
-            // create the output directory
-            create_directories(foldername);
-        }
-
-        convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, false, verbose);
+        image_files.push_back(fn);
       }
     }
+  }
+
+  for (int i = 0; i < image_files.size(); i++) {
+    std::string fn = image_files[i];
+    // if we have a .nii.gz or .nii we can start
+    std::string identifier("unknown");
+    std::string json_file = fn;
+    fs::directory_entry entry(fn);
+    std::string extension = "";
+    if (ends_with(fn, ".nii.gz")) {
+      std::string f_only = entry.path().filename().string();
+      std::vector<std::string> pieces;
+      tokenize(f_only.substr(0, f_only.size() - std::string(".nii.gz").size()), '_', pieces);
+      if (pieces.size() > 2) {
+        identifier = pieces[2]; // something like "adc"
+      }
+      if (pieces.size() > 0) {
+        // remove the sub- component if it exists
+        if (pieces[0].substr(0,4) == std::string("sub-")) {
+          PatientID = pieces[0].substr(4, pieces[0].size());
+        }
+      }
+      if (pieces.size() > 1) {
+        // remove the sub- component if it exists
+        if (pieces[1].substr(0,4) == std::string("ses-")) {
+          EventName = pieces[1].substr(4, pieces[1].size());
+        }
+      }
+      json_file = json_file.substr(0, json_file.size() - std::string(".nii.gz").size()) + ".json";
+      extension = ".gz";
+    } else {
+      std::string f_only = entry.path().filename().string();
+      std::vector<std::string> pieces;
+      tokenize(f_only.substr(0, f_only.size() - std::string(".nii").size()), '_', pieces);
+      if (pieces.size() > 2) {
+        identifier = pieces[2]; // something like "adc"
+      }
+      if (pieces.size() > 0) {
+        // remove the sub- component if it exists
+        if (pieces[0].substr(0,4) == std::string("sub-")) {
+          PatientID = pieces[0].substr(4, pieces[0].size());
+        }
+      }
+      if (pieces.size() > 1) {
+        // remove the sub- component if it exists
+        if (pieces[1].substr(0,4) == std::string("ses-")) {
+          EventName = pieces[1].substr(4, pieces[1].size());
+        }
+      }
+      json_file = json_file.substr(0, json_file.size() - std::string(".nii").size()) + ".json";
+    }
+    // check if that the json file exists, if not use a dummy json instead
+    json json_data;
+    if (std::filesystem::is_regular_file(json_file)) {
+      json_dummy_file = json_file; // keep a record of this for the masks
+      // we found an nii and a corresponding json file
+      if (verbose)
+        fprintf(stdout, "%s\n%s\n", fn.c_str(), json_file.c_str() );
+        // read the json and start processing
+      std::ifstream f(json_file);
+      json_data = json::parse(f);
+      // add more tags to the json_data before writing
+      // TODO: check if they exist and only add if not
+      json_data["PatientID"] = PatientID;
+      json_data["PatientName"] = PatientID;
+      json_data["ReferringPhysicianName"] = EventName;
+      json_data["AccessionNumber"] = AccessionNumber;
+      json_data["StudyID"] = StudyID;
+    } else {          
+      if (verbose)
+        fprintf(stdout, "%s\n", fn.c_str());
+      json_data["PatientID"] = PatientID;
+      json_data["PatientName"] = PatientID;
+      json_data["ReferringPhysicianName"] = EventName;
+      json_data["AccessionNumber"] = AccessionNumber;
+      json_data["StudyID"] = StudyID;
+    }
+    // add the identifier as a folder
+    std::string foldername = output + "/" + PatientID + "/" + EventName + "/" + std::to_string(SeriesCounter) + "_" + identifier + "/";
+    if (!itksys::SystemTools::FileIsDirectory(foldername.c_str())) {
+        // create the output directory
+        create_directories(foldername);
+    }
+    convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, false, verbose);
   }
 
   // repeat the same for any mask
@@ -1216,91 +1229,94 @@ int main(int argc, char *argv[]) {
         // ignore all files that are not .nii or .nii.gz
         if (!ends_with(fn, ".nii.gz") && !ends_with(fn, ".nii"))
           continue; // ignore
-        // if we have a .nii.gz or .nii we can start
-        std::string identifier("unknown");
-        std::string json_file = fn;
-        std::string extension = "";
-        if (ends_with(fn, ".nii.gz")) {
-          std::string f_only = entry.path().filename().string();
-          std::vector<std::string> pieces;
-          tokenize(f_only.substr(0, f_only.size() - std::string(".nii.gz").size()), '_', pieces);
-          if (pieces.size() > 2) {
-            identifier = pieces[2]; // something like "adc"
-          }
-          if (pieces.size() > 0) {
-            // remove the sub- component if it exists
-            if (pieces[0].substr(0,4) == std::string("sub-")) {
-              PatientID = pieces[0].substr(4, pieces[0].size());
-            }
-          }
-          if (pieces.size() > 1) {
-            // remove the sub- component if it exists
-            if (pieces[1].substr(0,4) == std::string("ses-")) {
-              EventName = pieces[1].substr(4, pieces[1].size());
-            }
-          }
-          json_file = json_file.substr(0, json_file.size() - std::string(".nii.gz").size()) + ".json";
-          extension = ".gz";
-        } else {
-          std::string f_only = entry.path().filename().string();
-          std::vector<std::string> pieces;
-          tokenize(f_only.substr(0, f_only.size() - std::string(".nii").size()), '_', pieces);
-          if (pieces.size() > 2) {
-            identifier = pieces[2]; // something like "adc"
-          }
-          if (pieces.size() > 0) {
-            // remove the sub- component if it exists
-            if (pieces[0].substr(0,4) == std::string("sub-")) {
-              PatientID = pieces[0].substr(4, pieces[0].size());
-            }
-          }
-          if (pieces.size() > 1) {
-            // remove the sub- component if it exists
-            if (pieces[1].substr(0,4) == std::string("ses-")) {
-              EventName = pieces[1].substr(4, pieces[1].size());
-            }
-          }
-          json_file = json_file.substr(0, json_file.size() - std::string(".nii").size()) + ".json";
-        }
-        if (!std::filesystem::is_regular_file(json_file) && std::filesystem::is_regular_file(json_dummy_file)) {
-          json_file = json_dummy_file;
-        }
-
-        json json_data;
-        // check if that the file exists
-        if (std::filesystem::is_regular_file(json_file)) {
-          // we found an nii and a corresponding json file
-          if (verbose)
-            fprintf(stdout, "%s\n%s\n", fn.c_str(), json_file.c_str() );
-
-          // read the json and start processing
-          std::ifstream f(json_file);
-          json_data = json::parse(f);
-          json_data["PatientID"] = PatientID;
-          json_data["PatientName"] = PatientID;
-          json_data["ReferringPhysicianName"] = EventName;
-          json_data["AccessionNumber"] = AccessionNumber;
-          json_data["StudyID"] = StudyID;
-        } else {
-          if (verbose)
-            fprintf(stdout, "%s\n", fn.c_str() );
-          json_data["PatientID"] = PatientID;
-          json_data["PatientName"] = PatientID;
-          json_data["ReferringPhysicianName"] = EventName;
-          json_data["AccessionNumber"] = AccessionNumber;
-          json_data["StudyID"] = StudyID;
-        }
-
-        // add the identifier as a folder
-        std::string foldername = output + "/" + PatientID + "/" + EventName + "/" + std::to_string(SeriesCounter) + "_" + identifier + "/";
-        if (!itksys::SystemTools::FileIsDirectory(foldername.c_str())) {
-            // create the output directory
-            create_directories(foldername);
-        }
-        // convert as mask
-        convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, true, verbose);        
+        mask_files.push_back(fn);
       }
     }
+  }
+
+  for (int i = 0; i < mask_files.size(); i++) {
+    std::string fn = mask_files[i];
+    // if we have a .nii.gz or .nii we can start
+    std::string identifier("unknown");
+    std::string json_file = fn;
+    fs::directory_entry entry(fn);
+    std::string extension = "";
+    if (ends_with(fn, ".nii.gz")) {
+      std::string f_only = entry.path().filename().string();
+      std::vector<std::string> pieces;
+      tokenize(f_only.substr(0, f_only.size() - std::string(".nii.gz").size()), '_', pieces);
+      if (pieces.size() > 2) {
+        identifier = pieces[2]; // something like "adc"
+      }
+      if (pieces.size() > 0) {
+        // remove the sub- component if it exists
+        if (pieces[0].substr(0,4) == std::string("sub-")) {
+          PatientID = pieces[0].substr(4, pieces[0].size());
+        }
+      }
+      if (pieces.size() > 1) {
+        // remove the sub- component if it exists
+        if (pieces[1].substr(0,4) == std::string("ses-")) {
+          EventName = pieces[1].substr(4, pieces[1].size());
+        }
+      }
+      json_file = json_file.substr(0, json_file.size() - std::string(".nii.gz").size()) + ".json";
+      extension = ".gz";
+    } else {
+      std::string f_only = entry.path().filename().string();
+      std::vector<std::string> pieces;
+      tokenize(f_only.substr(0, f_only.size() - std::string(".nii").size()), '_', pieces);
+      if (pieces.size() > 2) {
+        identifier = pieces[2]; // something like "adc"
+      }
+      if (pieces.size() > 0) {
+        // remove the sub- component if it exists
+        if (pieces[0].substr(0,4) == std::string("sub-")) {
+          PatientID = pieces[0].substr(4, pieces[0].size());
+        }
+      }
+      if (pieces.size() > 1) {
+        // remove the sub- component if it exists
+        if (pieces[1].substr(0,4) == std::string("ses-")) {
+          EventName = pieces[1].substr(4, pieces[1].size());
+        }
+      }
+      json_file = json_file.substr(0, json_file.size() - std::string(".nii").size()) + ".json";
+    }
+    if (!std::filesystem::is_regular_file(json_file) && std::filesystem::is_regular_file(json_dummy_file)) {
+      json_file = json_dummy_file;
+    }
+    json json_data;
+    // check if that the file exists
+    if (std::filesystem::is_regular_file(json_file)) {
+      // we found an nii and a corresponding json file
+      if (verbose)
+        fprintf(stdout, "%s\n%s\n", fn.c_str(), json_file.c_str() );
+      // read the json and start processing
+      std::ifstream f(json_file);
+      json_data = json::parse(f);
+      json_data["PatientID"] = PatientID;
+      json_data["PatientName"] = PatientID;
+      json_data["ReferringPhysicianName"] = EventName;
+      json_data["AccessionNumber"] = AccessionNumber;
+      json_data["StudyID"] = StudyID;
+    } else {
+      if (verbose)
+        fprintf(stdout, "%s\n", fn.c_str() );
+      json_data["PatientID"] = PatientID;
+      json_data["PatientName"] = PatientID;
+      json_data["ReferringPhysicianName"] = EventName;
+      json_data["AccessionNumber"] = AccessionNumber;
+      json_data["StudyID"] = StudyID;
+    }
+    // add the identifier as a folder
+    std::string foldername = output + "/" + PatientID + "/" + EventName + "/" + std::to_string(SeriesCounter) + "_" + identifier + "/";
+    if (!itksys::SystemTools::FileIsDirectory(foldername.c_str())) {
+        // create the output directory
+        create_directories(foldername);
+    }
+    // convert as mask
+    convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, true, verbose);            
   }
 
   // check if we have already a tracking file (mapping.json)
