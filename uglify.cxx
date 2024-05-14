@@ -1071,6 +1071,9 @@ int main(int argc, char *argv[]) {
       tokenize(md[i], '=', pieces);
       if (pieces.size() == 2) {
         overwrites[pieces[0]] = pieces[1];
+      } else {
+        fprintf(stderr, "Error: could not parse modify option \"%s\" as \"key=value\".", md[i].c_str());
+        exit(-1);
       }
     }
   }

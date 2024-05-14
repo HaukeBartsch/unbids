@@ -101,6 +101,15 @@ Warning: The .nii files may contain not primary image data but derived data such
 
 Warning: This approach is problematic because not all DICOM tags are present in the json file, only the once deemed useful by the original conversion tool (DICOM to .nii + .json) have been included. Our re-created DICOM files will therefore have missing information that might be required for data processing steps like minimally pre-processing. Even worse our generated DICOM files will pretend to be coming from a vendor without following their standard. A tool that tries to process or visualize such DICOM data might produce errors.
 
+### Advanced usage
+
+In case specific DICOM tags need to be overwritten with fixed values use the "--modify" option. If official DICOM tags are used (such as PatientID, PatientName) the provided values will be used instead of the default values.
+
+```bash
+uglify --verbose --modify "PatientID=PAT001" --modify "PatientName=PAT001" -o /tmp/output example.nii.gz
+```
+
+
 ### Build
 
 Use cmake and create either a 'Release' (fast) or a 'Debug' build.
@@ -115,7 +124,7 @@ To convert a folder like ISLES-2022 ([DOI](https://doi.org/10.5281/zenodo.715332
 ```bash
 for u in {1..250}; do 
    a=$(printf '%04d' $u); 
-   ./uglify -i data/ISLES-2022/sub-strokecase${a} -m data/ISLES-2022/derivatives/sub-strokecase${a} /tmp/bla/
+   ./uglify -i data/ISLES-2022/sub-strokecase${a} -m data/ISLES-2022/derivatives/sub-strokecase${a} -o /tmp/bla/
 done
 ```
 
@@ -143,3 +152,4 @@ strokecase0001,0001,E594E1ED67,E594E1ED67
 strokecase0002,0001,2FB096749484,2FB096749484
 ...
 ```
+
