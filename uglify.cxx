@@ -59,10 +59,10 @@
 
 #include "itkMetaDataDictionary.h"
 #include "json.hpp"
-#include "metaCommand.h"
 #include <boost/algorithm/string.hpp>
 #include <boost/date_time.hpp>
 #include <boost/filesystem.hpp>
+#include <boost/program_options.hpp>
 #include <codecvt>
 #include <locale> // wstring_convert
 #include <map>
@@ -334,7 +334,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       ++inputIterator3D;
     }
     if (verbose)
-      fprintf(stdout, "[%d files, %f..%f]\n", size[2], minValue, maxValue);
+      fprintf(stdout, "[%lu files, %f..%f]\n", size[2], minValue, maxValue);
     if (!data.contains("SmallestImagePixelValue")) {
       data["SmallestImagePixelValue"] = 0;
     }
@@ -972,6 +972,10 @@ std::string randomHexInt(int N) {
 // TODO: add a -m option to modifiy DICOM tags. This does only make sense if 
 // we can provide it several times (GetValueAsLIST).
 
+namespace po = boost::program_options;
+
+
+
 int main(int argc, char *argv[]) {
   setlocale(LC_NUMERIC, "en_US.utf-8");
 
@@ -980,126 +984,96 @@ int main(int argc, char *argv[]) {
 
   itk::MultiThreaderBase::SetGlobalMaximumNumberOfThreads(4);
 
-  MetaCommand command;
-  command.SetAuthor("Hauke Bartsch");
-  std::string versionString = std::string("0.0.4.") + boost::replace_all_copy(std::string(__DATE__), " ", ".");
-  command.SetVersion(versionString.c_str());
-  command.SetDate(to_simple_string(timeLocal).c_str());
-  command.SetDescription("UGLIFY: Convert a BIDS like folder to DICOM.");
-  command.SetCategory("image conversion");
-  command.AddField("outdir", "Directory for output DICOM images.", MetaCommand::STRING, true);
+  bool verbose = false;
+  std::string output("");
+  json overwrites; // command line options to overwrite entries derived from side-loading json
 
-//  command.SetOption("SeriesName", "n", false, "Select series by series name (if more than one series is present).");
-//  command.SetOptionLongTag("SeriesName", "seriesname");
-//  command.AddOptionField("SeriesName", "seriesname", MetaCommand::STRING, false);
+  po::options_description desc("Allowed options");
+  desc.add_options()
+      ("help,h", "UGLIFY: Convert a BIDS like folder to DICOM.")
+      ("version,V", "Print the version number.")
+      ("verbose,v", po::bool_switch(&verbose), "Print more verbose output during processing.")
+      ("raw-data,i", po::value< std::vector<std::string> >(), "Folder with nii.gz and .json files, or a single .nii/.nii.gz file.")
+      ("mask-data,m", po::value< std::vector<std::string> >(), "Folder with nii.gz and .json files, or a single .nii/.nii.gz file.")
+      ("outdir,o", po::value<std::string>(&output), "Output directory for DICOM files")
+      ("modify,e", po::value< std::vector< std::string > >(), "Modify individual DICOM tags (\"PatientID=MEME\"). This option can be used more than once.")
+  ;
+  // allow positional arguments to map to rawdata
+  po::positional_options_description p;
+  p.add("raw-data", -1);
 
-  command.SetOption("RawData", "i", false, "Folder with nii.gz files and .json files.");
-  command.SetOptionLongTag("RawData", "raw-data");
-  command.AddOptionField("RawData", "value", MetaCommand::STRING, true);
-
-  command.SetOption("MaskData", "m", false, "Folder with nii.gz files representing mask volumes.");
-  command.SetOptionLongTag("MaskData", "mask-data");
-  command.AddOptionField("MaskData", "value", MetaCommand::STRING, false);
-
-
-  // allow for interpolation between slices (assumes a single object)
-  // instead do this in a separate command (MorphologicalContourInterpolation)
-  
-//  command.SetOption(
-//      "UIDFixed", "u", false,
-//      "If enabled identifiers are stable - will not change for a given input. This allows image series to overwrite each other - assuming that the PACS "
-//      "supports this overwrite mode. By default the SeriesInstanceUID and SOPInstanceUID values are generated again every time the processing is done.");
-//  command.SetOptionLongTag("UIDFixed", "uid-fixed");
-
-  command.SetOption("Verbose", "v", false, "Print more verbose output");
-  command.SetOptionLongTag("Verbose", "verbose");
-
-//  command.SetOption("BrightnessContrastLL", "d", false, "Set threshold for brightness / contrast based on cummulative histogram lower limit (percentage dark pixel 0.01).");
-//  command.SetOptionLongTag("BrightnessContrastLL", "brightness-contrast-ll");
-//  command.AddOptionField("BrightnessContrastLL", "value", MetaCommand::FLOAT, false);
-
-//  command.SetOption("BrightnessContrastUL", "b", false, "Set threshold for brightness / contrast based on cummulative histogram upper limit (percentage bright pixel 0.999).");
-//  command.SetOptionLongTag("BrightnessContrastUL", "brightness-contrast-ul");
-//  command.AddOptionField("BrightnessContrastUL", "value", MetaCommand::FLOAT, false);
-
-  if (!command.Parse(argc, argv)) {
-    return 1;
+  po::variables_map vm;
+  try {
+    po::store(po::command_line_parser(argc, argv).
+            options(desc).positional(p).run(), vm);
+    po::notify(vm);
+  } catch(std::exception& e) {
+        std::cout << e.what() << "\n";
+        return 1;
   }
 
-  bool verbose = false;
-  if (command.GetOptionWasSet("Verbose"))
-    verbose = true;
+  if (vm.count("help")) {
+    std::cout << desc << std::endl;
+    return 0;
+  }
 
-  // collect all files found in either -i or in the provided directry
+  std::string versionString = std::string("0.0.1.") + boost::replace_all_copy(std::string(__DATE__), " ", ".");
+  if (vm.count("version")) {
+    fprintf(stdout, "version: %s\n", versionString.c_str());
+    return 0;
+  }
+
+  if (!vm.count("outdir")) {
+    fprintf(stderr, "Error: we require an output directory -o.\n");
+    return -1;
+  }
+
   std::vector< std::string > image_files;
-  std::vector< std::string > mask_files;
-
   std::vector<std::string> image_folders;
-  if (command.GetOptionWasSet("RawData")) {
-    std::string tmp = command.GetValueAsString("RawData", "value");
-    if (itksys::SystemTools::FileIsDirectory(tmp.c_str())) {
-      image_folders.push_back(tmp);
-    } else if (std::filesystem::is_regular_file(tmp.c_str())) {
-      image_files.push_back(tmp);
-    } else {
-      fprintf(stderr, "Error: raw data argument is not a valid directory [%s]\n", tmp.c_str());
-      exit(-1);
+  if (vm.count("raw-data")) {
+    auto rd = vm["raw-data"].as< std::vector< std::string > >();
+    for (int i = 0; i < rd.size(); i++) {
+      std::string tmp = rd[i];
+      if (itksys::SystemTools::FileIsDirectory(tmp.c_str())) {
+        image_folders.push_back(tmp);
+      } else if (std::filesystem::is_regular_file(tmp.c_str())) {
+        image_files.push_back(tmp);
+      } else {
+        fprintf(stderr, "Error: raw data argument is not a valid directory or file [%s]\n", tmp.c_str());
+        exit(-1);
+      }
     }
   }
 
+  std::vector< std::string > mask_files;
   std::vector<std::string> mask_folders;
-  if (command.GetOptionWasSet("MaskData")) {
-    std::string tmp = command.GetValueAsString("MaskData", "value");
-    if (itksys::SystemTools::FileIsDirectory(tmp.c_str())) {
-      mask_folders.push_back(tmp);
-    } else if (std::filesystem::is_regular_file(tmp.c_str())) {
-      mask_files.push_back(tmp);
-    } else {
-      fprintf(stderr, "Error: mask data argument is not a valid directory [%s]\n", tmp.c_str());
-      exit(-1);
-    }  
+  if (vm.count("mask-data")) {
+    auto rd = vm["mask-data"].as< std::vector< std::string > >();
+    for (int i = 0; i < rd.size(); i++) {
+      std::string tmp = rd[i];
+      if (itksys::SystemTools::FileIsDirectory(tmp.c_str())) {
+        mask_folders.push_back(tmp);
+      } else if (std::filesystem::is_regular_file(tmp.c_str())) {
+        mask_files.push_back(tmp);
+      } else {
+        fprintf(stderr, "Error: raw data argument is not a valid directory or file [%s]\n", tmp.c_str());
+        exit(-1);
+      }
+    }
   }
 
-//  float brightness_contrast_ll = 0.01;
-//  float brightness_contrast_ul = 0.999;
-//  float brightnesscontrast_ll = brightness_contrast_ll;
-//  float brightnesscontrast_ul = brightness_contrast_ul;
-//  if (command.GetOptionWasSet("BrightnessContrastLL")) {
-//    brightnesscontrast_ll = command.GetValueAsFloat("BrightnessContrastLL", "value");
-//    if (brightnesscontrast_ll < 0 || brightnesscontrast_ll > 1.0) {
-//      fprintf(stdout, "Warning: lower brightness values not between 0 and 1. Adjusted to 0.01.\n");
-//      brightnesscontrast_ll = 0.01;
-//    }
-//  }
-//  if (command.GetOptionWasSet("BrightnessContrastUL")) {
-//    brightnesscontrast_ul = command.GetValueAsFloat("BrightnessContrastUL", "value");
-//    if (brightnesscontrast_ul < 0 || brightnesscontrast_ul > 1.0) {
-//      fprintf(stdout, "Warning: upper brightness values not between 0 and 1. Adjusted to 0.999.\n");
-//      brightnesscontrast_ul = 0.999;
-//    }
-//  }
-//  if (brightnesscontrast_ul < brightnesscontrast_ll) {
-//    float tmp = brightnesscontrast_ll;
-//    brightnesscontrast_ll = brightnesscontrast_ul;
-//    brightnesscontrast_ul = tmp;
-//  }
-//  brightness_contrast_ll = brightnesscontrast_ll;
-//  brightness_contrast_ul = brightnesscontrast_ul;
-//  if (verbose) {
-//    fprintf(stdout, "create report with brightness/contrast setting %.03f %.03f\n", brightness_contrast_ll, brightness_contrast_ul);
-//  }
-
-//  bool uidFixedFlag = false;
-//  if (command.GetOptionWasSet("UIDFixed"))
-//    uidFixedFlag = true;
-
-  bool seriesIdentifierFlag = false;
-  std::string output = command.GetValueAsString("outdir");
-
-//  if (command.GetOptionWasSet("SeriesName"))
-//    seriesIdentifierFlag = true;
-
-//  std::string seriesName = command.GetValueAsString("SeriesName", "seriesname");
+  if (vm.count("modify")) {
+    auto md = vm["modify"].as< std::vector< std::string > >();
+    for (int i = 0; i < md.size(); i++) {
+      //fprintf(stdout, "Found a modify option: %s\n", md[i].c_str());
+      // we should add these to the data json
+      std::vector<std::string> pieces;
+      tokenize(md[i], '=', pieces);
+      if (pieces.size() == 2) {
+        overwrites[pieces[0]] = pieces[1];
+      }
+    }
+  }
 
   // store information in the result json file
   resultJSON["command_line"] = json::array();
@@ -1217,6 +1191,10 @@ int main(int argc, char *argv[]) {
         // create the output directory
         create_directories(foldername);
     }
+    // add our overwrites
+    if (!overwrites.is_null())
+      json_data.update(overwrites);
+
     convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, false, verbose);
   }
 
@@ -1315,6 +1293,10 @@ int main(int argc, char *argv[]) {
         // create the output directory
         create_directories(foldername);
     }
+    // add our overwrites
+    if (!overwrites.is_null())
+      json_data.update(overwrites);
+
     // convert as mask
     convert(json_data, fn, foldername, identifier, StudyInstanceUID, frameOfReferenceUID, SeriesCounter++, true, verbose);            
   }
