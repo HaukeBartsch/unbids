@@ -1113,7 +1113,10 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  json json_data; // do we have to reset this every time? (no, we are reading from disk)
   for (int i = 0; i < image_files.size(); i++) {
+    json_data = json::object();
+
     std::string fn = image_files[i];
     // if we have a .nii.gz or .nii we can start
     std::string identifier("unknown");
@@ -1163,7 +1166,6 @@ int main(int argc, char *argv[]) {
       json_file = json_file.substr(0, json_file.size() - std::string(".nii").size()) + ".json";
     }
     // check if that the json file exists, if not use a dummy json instead
-    json json_data;
     if (std::filesystem::is_regular_file(json_file)) {
       json_dummy_file = json_file; // keep a record of this for the masks
       // we found an nii and a corresponding json file
@@ -1214,8 +1216,8 @@ int main(int argc, char *argv[]) {
       }
     }
   }
-
   for (int i = 0; i < mask_files.size(); i++) {
+    json_data = json::object();
     std::string fn = mask_files[i];
     // if we have a .nii.gz or .nii we can start
     std::string identifier("unknown");
@@ -1267,7 +1269,7 @@ int main(int argc, char *argv[]) {
     if (!std::filesystem::is_regular_file(json_file) && std::filesystem::is_regular_file(json_dummy_file)) {
       json_file = json_dummy_file;
     }
-    json json_data;
+    //json json_data;
     // check if that the file exists
     if (std::filesystem::is_regular_file(json_file)) {
       // we found an nii and a corresponding json file
@@ -1310,11 +1312,11 @@ int main(int argc, char *argv[]) {
   if (!itksys::SystemTools::FileExists(mapping_file.c_str(), true)) {
     // create and add a header
     mapFile.open(mapping_file);
-    mapFile << "PatientID" << "," << "EventName" << "," << "AccessionNumber" << "," << "StudyID" << std::endl;
+    mapFile << "subjectid" << "," << "eventname" << "," << "AccessionNumber" << "," << "StudyID" << "," << "StudyInstanceUID" << std::endl;
     mapFile.close();
   }
   mapFile.open(mapping_file, std::ios_base::app);
-  mapFile << PatientID << "," << EventName << "," << AccessionNumber << "," << StudyID << std::endl;
+  mapFile << json_data["PatientID"] << "," << json_data["ReferringPhysicianName"] << "," << json_data["AccessionNumber"] << "," << json_data["StudyID"] << "," << StudyInstanceUID << std::endl;
   mapFile.close();
 
 
