@@ -216,7 +216,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
 
   // TODO: add an -u option for static uids based on the input folder (md5 of the nii.gz?)
   gdcm::UIDGenerator fuid;
-  fuid.SetRoot("1.3.6.1.4.1.45037");
+  fuid.SetRoot("1.3.6.1.4.1.45037.1"); // we add a post-fix to the root to indicate its not created by research PACS
   std::string SeriesInstanceUID = fuid.Generate();
   if (verbose)
     fprintf(stdout, "\t  StudyInstanceUID: %s\n\t  SeriesInstanceUID: %s [%d]\n\t  %s\t", StudyInstanceUID.c_str(), SeriesInstanceUID.c_str(), SeriesNumber, output_folder.c_str());
@@ -1085,7 +1085,7 @@ int main(int argc, char *argv[]) {
   }
 
   gdcm::UIDGenerator fuid;
-  fuid.SetRoot("1.3.6.1.4.1.45037");
+  fuid.SetRoot("1.3.6.1.4.1.45037.1");
   std::string StudyInstanceUID = fuid.Generate();
   std::string frameOfReferenceUID = fuid.Generate();
   int SeriesCounter = 1;
