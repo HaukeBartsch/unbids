@@ -24,7 +24,7 @@ tree -L 3 /tmp/bla
 
 ### Example 1 - BRATS
 
-The brats dataset contains NIfTI images that contain four different 3D volumes (4D .nii.gz). The call above will convert one of these files into a folder of DICOM with a single series (4 volumes with repeating slice locations).
+The brats dataset has files that contain four different 3D volumes (4D .nii.gz). The call above will convert one of these files into a folder of DICOM with a single series (4 volumes with repeating slice locations).
 
 ### Example 2 - ISLES-2022
 
@@ -157,9 +157,8 @@ Each of the sub-directories contains an individual series of DICOM files with th
 The 'mapping.csv' contains DICOM identifiers (generated randomly):
 
 ```csv
-PatientID,EventName,AccessionNumber,StudyID
-strokecase0001,0001,E594E1ED67,E594E1ED67
-strokecase0002,0001,2FB096749484,2FB096749484
+subjectid,eventname,AccessionNumber,StudyID,StudyInstanceUID
+"strokecase0001","0001","0BFC6DC34FC9","0BFC6DC34FC9",1.3.6.1.4.1.45037.293108160657373275758438834236443259654
 ...
 ```
 
