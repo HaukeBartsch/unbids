@@ -132,6 +132,18 @@ Use cmake and create either a 'Release' (fast) or a 'Debug' build.
 ```bash
 cmake -DCMAKE_BUILD_TYPE=Debug .
 make
+./uglify -h
+Allowed options:
+  -h [ --help ]          UGLIFY: Convert a BIDS like folder to DICOM.
+  -V [ --version ]       Print the version number.
+  -v [ --verbose ]       Print more verbose output during processing.
+  -i [ --raw-data ] arg  Folder with nii.gz and .json files, or a single 
+                         .nii/.nii.gz file.
+  -m [ --mask-data ] arg Folder with nii.gz and .json files, or a single 
+                         .nii/.nii.gz file.
+  -o [ --outdir ] arg    Output directory for DICOM files
+  -e [ --modify ] arg    Modify individual DICOM tags ("PatientID=MEME"). This 
+                         option can be used more than once.
 ```
 
 To convert a folder like ISLES-2022 ([DOI](https://doi.org/10.5281/zenodo.7153326), [[arXiv](https://arxiv.org/abs/2206.06694)):
