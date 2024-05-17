@@ -5,7 +5,7 @@
 A.I. model training can be done with publicly available data. Image data are originally collected on medical scanners in DICOM format and some projects convert them into NIfTI (.nii, as in BIDS) before sharing. As I want A.I. to happen inside clinics here I try to convert such data back to the clinical DICOM format (research PACS). As much information is lost in the initial conversion this may create 'ugly' DICOM files.
 
 ```bash
-./uglify -i data/ISLES-2022/sub-strokecase0001 -m data/ISLES-2022/derivatives/sub-strokecase0001 /tmp/bla
+./uglify -i data/ISLES-2022/sub-strokecase0001 -m data/ISLES-2022/derivatives/sub-strokecase0001 -o /tmp/bla
 tree -L 3 /tmp/bla
 /tmp/bla
 └── strokecase0001
@@ -17,6 +17,16 @@ tree -L 3 /tmp/bla
 ```
 
 ## Introduction
+
+```bash
+./uglify -o /tmp/brats_as_dicom data/brats/BRATS_280.nii.gz
+```
+
+### Example 1 - BRATS
+
+The brats dataset contains NIfTI images that contain four different 3D volumes (4D .nii.gz). The call above will convert one of these files into a folder of DICOM with a single series (4 volumes with repeating slice locations).
+
+### Example 2 - ISLES-2022
 
 The ISLES-2022 dataset ([arXiv](https://arxiv.org/abs/2206.06694)) is an example volumetric medical imaging collection that contains images in the NIfTI format (extensions .nii.gz or .nii). Each .nii file may be acompanied by a side-loading javascript object notation (json) text file that contains a single object with key-value pairs. Here an example:
 
