@@ -119,6 +119,11 @@ In case specific DICOM tags need to be overwritten with fixed values use the "--
 uglify --verbose --modify "PatientID=PAT001" --modify "PatientName=PAT001" -o /tmp/output example.nii.gz
 ```
 
+Data provided with the '-i,--raw-data' option (or provided at the end) are encoded as unsigned short values which is suitable for most raw image data. The option '-m,--mask-data' should be used instead if the image provided is a mask and no scaling of the intensities should be applied. Mask volumes are encoded in the input format, usually 0 for background and 1 for the first label.
+
+```bash
+./uglify -m data/ISLES-2022/derivatives/sub-strokecase0001 -o /tmp/bla/
+```
 
 ### Build
 
