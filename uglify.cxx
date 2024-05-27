@@ -4,6 +4,7 @@
 #include "itkImageFileWriter.h"
 #include "itkImageSeriesReader.h"
 #include "itkMetaDataObject.h"
+#include "itkSpatialOrientation.h"
 
 #include "itkBinaryBallStructuringElement.h"
 #include "itkBinaryDilateImageFilter.h"
@@ -136,58 +137,58 @@ std::pair< std::string, typename TImageType::Pointer > GetImageOrientation(const
   auto desiredOrientation_wrap = desiredOrientation;
   std::transform(desiredOrientation_wrap.begin(), desiredOrientation_wrap.end(), desiredOrientation_wrap.begin(), ::toupper);
   
-  std::map< std::string, itk::SpatialOrientation::ValidCoordinateOrientationFlags > orientationMap;
-  orientationMap["Axial"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RAI;
-  orientationMap["Coronal"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RSA;
-  orientationMap["Sagittal"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ASL;
-  orientationMap["RIP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RIP;
-  orientationMap["LIP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LIP;
-  orientationMap["RSP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RSP;
-  orientationMap["LSP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LSP;
-  orientationMap["RIA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RIA;
-  orientationMap["LIA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LIA;
-  orientationMap["RSA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RSA;
-  orientationMap["LSA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LSA;
-  orientationMap["IRP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_IRP;
-  orientationMap["ILP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ILP;
-  orientationMap["SRP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SRP;
-  orientationMap["SLP"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SLP;
-  orientationMap["IRA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_IRA;
-  orientationMap["ILA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ILA;
-  orientationMap["SRA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SRA;
-  orientationMap["SLA"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SLA;
-  orientationMap["RPI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RPI;
-  orientationMap["LPI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LPI;
-  orientationMap["RAI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RAI;
-  orientationMap["LAI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LAI;
-  orientationMap["RPS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RPS;
-  orientationMap["LPS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LPS;
-  orientationMap["RAS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_RAS;
-  orientationMap["LAS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_LAS;
-  orientationMap["PRI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PRI;
-  orientationMap["PLI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PLI;
-  orientationMap["ARI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ARI;
-  orientationMap["ALI"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ALI;
-  orientationMap["PRS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PRS;
-  orientationMap["PLS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PLS;
-  orientationMap["ARS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ARS;
-  orientationMap["ALS"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ALS;
-  orientationMap["IPR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_IPR;
-  orientationMap["SPR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SPR;
-  orientationMap["IAR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_IAR;
-  orientationMap["SAR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SAR;
-  orientationMap["IPL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_IPL;
-  orientationMap["SPL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SPL;
-  orientationMap["IAL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_IAL;
-  orientationMap["SAL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_SAL;
-  orientationMap["PIR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PIR;
-  orientationMap["PSR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PSR;
-  orientationMap["AIR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_AIR;
-  orientationMap["ASR"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ASR;
-  orientationMap["PIL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PIL;
-  orientationMap["PSL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_PSL;
-  orientationMap["AIL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_AIL;
-  orientationMap["ASL"] = itk::SpatialOrientation::ITK_COORDINATE_ORIENTATION_ASL;
+  std::map< std::string, itk::SpatialOrientationEnums::ValidCoordinateOrientations > orientationMap;
+  orientationMap["Axial"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_RAI;
+  orientationMap["Coronal"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_RSA;
+  orientationMap["Sagittal"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_ASL;
+  orientationMap["RIP"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_RIP;
+  orientationMap["LIP"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_LIP;
+  orientationMap["RSP"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_RSP;
+  orientationMap["LSP"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_LSP;
+  orientationMap["RIA"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_RIA;
+  orientationMap["LIA"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_LIA;
+  orientationMap["RSA"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_RSA;
+  orientationMap["LSA"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_LSA;
+  orientationMap["IRP"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_IRP;
+  orientationMap["ILP"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_ILP;
+  orientationMap["SRP"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_SRP;
+  orientationMap["SLP"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_SLP;
+  orientationMap["IRA"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_IRA;
+  orientationMap["ILA"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_ILA;
+  orientationMap["SRA"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_SRA;
+  orientationMap["SLA"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_SLA;
+  orientationMap["RPI"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_RPI;
+  orientationMap["LPI"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_LPI;
+  orientationMap["RAI"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_RAI;
+  orientationMap["LAI"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_LAI;
+  orientationMap["RPS"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_RPS;
+  orientationMap["LPS"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_LPS;
+  orientationMap["RAS"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_RAS;
+  orientationMap["LAS"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_LAS;
+  orientationMap["PRI"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_PRI;
+  orientationMap["PLI"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_PLI;
+  orientationMap["ARI"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_ARI;
+  orientationMap["ALI"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_ALI;
+  orientationMap["PRS"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_PRS;
+  orientationMap["PLS"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_PLS;
+  orientationMap["ARS"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_ARS;
+  orientationMap["ALS"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_ALS;
+  orientationMap["IPR"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_IPR;
+  orientationMap["SPR"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_SPR;
+  orientationMap["IAR"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_IAR;
+  orientationMap["SAR"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_SAR;
+  orientationMap["IPL"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_IPL;
+  orientationMap["SPL"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_SPL;
+  orientationMap["IAL"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_IAL;
+  orientationMap["SAL"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_SAL;
+  orientationMap["PIR"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_PIR;
+  orientationMap["PSR"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_PSR;
+  orientationMap["AIR"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_AIR;
+  orientationMap["ASR"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_ASR;
+  orientationMap["PIL"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_PIL;
+  orientationMap["PSL"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_PSL;
+  orientationMap["AIL"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_AIL;
+  orientationMap["ASL"] = itk::SpatialOrientationEnums::ValidCoordinateOrientations::ITK_COORDINATE_ORIENTATION_ASL;
 
   // set the desired orientation and update
   orientFilter->SetDesiredCoordinateOrientation(orientationMap[desiredOrientation_wrap]);
@@ -222,11 +223,11 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
     fprintf(stdout, "\t  StudyInstanceUID: %s\n\t  SeriesInstanceUID: %s [%d]\n\t  %s\t", StudyInstanceUID.c_str(), SeriesInstanceUID.c_str(), SeriesNumber, output_folder.c_str());
 
   // read the image data from the nii.gz or .nii file
-  itk::ImageIOBase::Pointer imageIO = itk::ImageIOFactory::CreateImageIO(nifti_file.c_str(), itk::ImageIOFactory::ReadMode);
+  itk::ImageIOBase::Pointer imageIO = itk::ImageIOFactory::CreateImageIO(nifti_file.c_str(),  itk::CommonEnums::IOFileMode::ReadMode);
 
   imageIO->SetFileName(nifti_file);
-  imageIO->ReadImageInformation();
-  itk::ImageIOBase::IOPixelType pixel_type = imageIO->GetPixelType();
+  imageIO->ReadImageInformation(); // this would work for non .nii files as well. We should support all filetypes (nrrd)
+  //itk::CommonEnums::IOPixel pixel_type = imageIO->GetPixelType();
   int dims = (int)imageIO->GetNumberOfDimensions();
 
   itk::CommonEnums::IOComponent ii= imageIO->GetComponentType();
@@ -335,17 +336,6 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
     }
     if (verbose)
       fprintf(stdout, "[%lu files, %f..%f]\n", size[2], minValue, maxValue);
-    if (!data.contains("SmallestImagePixelValue")) {
-      data["SmallestImagePixelValue"] = 0;
-    }
-    if (!data.contains("LargestImagePixelValue")) {
-      data["LargestImagePixelValue"] = 4096;
-    }
-    if (!data.contains("WindowWidth"))
-      data["WindowWidth"] = (4096.0)/2.0;
-    if (!data.contains("WindowCenter"))
-      data["WindowCenter"] = (4096.0)/2.0;
-
 
 
     // 
@@ -442,6 +432,39 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       // what to do if the slope is too small?
       if (slope < 0.001) {
         slope *= 1000;
+      }
+      if (!data.contains("RescaleIntercept")) {
+        // Intercept and Slope do not work if modality is OT, switch to a better modality like MR
+        if (!data.contains("Modality")) {
+          if (verbose)
+            fprintf(stdout, "Warning: no modality defined. Set Modality=MR to be able to store slope/intercept.\n");
+          data["Modality"] = "MR";
+        }
+        data["RescaleIntercept"] = intercept;
+      }
+      if (!data.contains("RescaleSlope"))
+        data["RescaleSlope"] = slope;
+
+      if (!data.contains("SmallestImagePixelValue")) {
+        data["SmallestImagePixelValue"] = minValue;
+      }
+      if (!data.contains("LargestImagePixelValue")) {
+        data["LargestImagePixelValue"] = maxValue;
+      }
+      if (!data.contains("WindowWidth")) {
+        // if we use a larger slope our window values are not ok
+        float a = 0 * slope + intercept;
+        float b = 4096.0 * slope + intercept;
+        if (isMask)
+          b = 1.0 * slope + intercept;
+        data["WindowWidth"] = (b-a);
+      }
+      if (!data.contains("WindowCenter")) {
+        float a = 0 * slope + intercept;
+        float b = 4096.0 * slope + intercept;
+        if (isMask)
+          b = 1.0 * slope + intercept;
+        data["WindowCenter"] = a + (b-a)/2.0;
       }
 
       inputIterator.GoToBegin();
@@ -616,10 +639,11 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       de3.SetByteValue(val.c_str(), val.size());
       ds.Insert(de3);
 
-
-      de3 = gdcm::DataElement(gdcm::Tag(0x0028,0x1052));
+/*
+      de3 = gdcm::DataElement(gdcm::Tag(0x0028,0x1052)); // RescaleIntercept
       val = zero_pad(std::to_string(intercept));
       de3.SetByteValue(val.c_str(), val.size());
+      de3.SetVR(gdcm::VR::DS);
       ds.Insert(de3);
 
 
@@ -630,11 +654,12 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
       value.str("");
       value << std::to_string(slope);
       //itk::EncapsulateMetaData<std::string>(dict,"0028|1053", value.str());
-      de3 = gdcm::DataElement(gdcm::Tag(0x0028,0x1053));
+      de3 = gdcm::DataElement(gdcm::Tag(0x0028,0x1053)); // RescaleSlope
       val = zero_pad(value.str());
       de3.SetByteValue(val.c_str(), val.size());
+      de3.SetVR(gdcm::VR::DS);
       ds.Insert(de3);
-
+*/
       // Series Description - Append new description to current series
       // description
       std::string oldSeriesDesc = "";
@@ -706,7 +731,7 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
               de.SetValue( locde.GetValue() );
               de.SetVR( entry.GetVR() );
             }
-          } else if (entry.GetVR() == gdcm::VR::DS) {
+          } else if (entry.GetVR() == gdcm::VR::DS && entry.GetVM() == gdcm::VM::VM1_n) {
             gdcm::Element<gdcm::VR::DS,gdcm::VM::VM1_n> el;
             const int vrsizeof = (entry.GetVR() == gdcm::VR::INVALID ? 0 : entry.GetVR().GetSizeof());
             el.SetLength( 1 * vrsizeof );
@@ -717,7 +742,19 @@ void convert(json data, std::string nifti_file, std::string output_folder, std::
               de.SetValue( locde.GetValue() );
               de.SetVR( entry.GetVR() );
             }
+          } else if (entry.GetVR() == gdcm::VR::DS && entry.GetVM() == gdcm::VM::VM1) {
+            gdcm::Element<gdcm::VR::DS,gdcm::VM::VM1> el;
+            const int vrsizeof = (entry.GetVR() == gdcm::VR::INVALID ? 0 : entry.GetVR().GetSizeof());
+            //el.SetLength( 1 * vrsizeof );
+            const double v = (double)value;
+            el.SetValue(v);
+            locde = el.GetAsDataElement();
+            if (!locde.IsEmpty()) {
+              de.SetValue( locde.GetValue() );
+              de.SetVR( entry.GetVR() );
+            }
           }
+
         } else if (value.type() == nlohmann:: detail::value_t::number_integer) {
           //std::string val = std::to_string((int)value);
           //val = zero_pad(val);
@@ -988,9 +1025,9 @@ int main(int argc, char *argv[]) {
   std::string output("");
   json overwrites; // command line options to overwrite entries derived from side-loading json
 
-  po::options_description desc("Allowed options");
+  po::options_description desc("UGLIFY: Convert a volume file to a DICOM folder.\nExample:\n  uglify --verbose -o /tmp/b4 --modify PatientID=MEME data/brats/BRATS_280.nii.gz\nAllowed options");
   desc.add_options()
-      ("help,h", "UGLIFY: Convert a BIDS like folder to DICOM.")
+      ("help,h", "Print this help.")
       ("version,V", "Print the version number.")
       ("verbose,v", po::bool_switch(&verbose), "Print more verbose output during processing.")
       ("raw-data,i", po::value< std::vector<std::string> >(), "Folder with nii.gz and .json files, or a single .nii/.nii.gz file.")
@@ -1012,7 +1049,7 @@ int main(int argc, char *argv[]) {
         return 1;
   }
 
-  if (vm.count("help")) {
+  if (vm.count("help") || argc <= 1) {
     std::cout << desc << std::endl;
     return 0;
   }
@@ -1085,7 +1122,7 @@ int main(int argc, char *argv[]) {
   }
 
   gdcm::UIDGenerator fuid;
-  fuid.SetRoot("1.3.6.1.4.1.45037.1");
+  fuid.SetRoot("1.3.6.1.4.1.45037.1"); // add .1 to our root to mark files as non-rPACS
   std::string StudyInstanceUID = fuid.Generate();
   std::string frameOfReferenceUID = fuid.Generate();
   int SeriesCounter = 1;

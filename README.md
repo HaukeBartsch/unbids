@@ -124,7 +124,7 @@ To convert a folder like ISLES-2022 ([DOI](https://doi.org/10.5281/zenodo.715332
 ```bash
 for u in {1..250}; do 
    a=$(printf '%04d' $u); 
-   ./uglify -i data/ISLES-2022/sub-strokecase${a} -m data/ISLES-2022/derivatives/sub-strokecase${a} -o /tmp/bla/
+   ./uglify --verbose -i data/ISLES-2022/sub-strokecase${a} -m data/ISLES-2022/derivatives/sub-strokecase${a} -o /tmp/bla/
 done
 ```
 
