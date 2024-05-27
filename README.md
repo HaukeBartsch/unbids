@@ -5,7 +5,7 @@
 A.I. model training can be done with publicly available data. Image data are originally collected on medical scanners in DICOM format and some projects convert them into NIfTI (.nii, as in BIDS) before sharing. As I want A.I. to happen inside clinics here I try to convert such data back to the clinical DICOM format (research PACS). As much information is lost in the initial conversion this may create 'ugly' DICOM files.
 
 ```bash
-./uglify -i data/ISLES-2022/sub-strokecase0001 -m data/ISLES-2022/derivatives/sub-strokecase0001 /tmp/bla
+./uglify -i data/ISLES-2022/sub-strokecase0001 -m data/ISLES-2022/derivatives/sub-strokecase0001 -o /tmp/bla
 tree -L 3 /tmp/bla
 /tmp/bla
 └── strokecase0001
@@ -17,6 +17,16 @@ tree -L 3 /tmp/bla
 ```
 
 ## Introduction
+
+```bash
+./uglify -o /tmp/brats_as_dicom data/brats/BRATS_280.nii.gz
+```
+
+### Example 1 - BRATS
+
+The brats dataset has files that contain four different 3D volumes (4D .nii.gz). The call above will convert one of these files into a folder of DICOM with a single series (4 volumes with repeating slice locations).
+
+### Example 2 - ISLES-2022
 
 The ISLES-2022 dataset ([arXiv](https://arxiv.org/abs/2206.06694)) is an example volumetric medical imaging collection that contains images in the NIfTI format (extensions .nii.gz or .nii). Each .nii file may be acompanied by a side-loading javascript object notation (json) text file that contains a single object with key-value pairs. Here an example:
 
@@ -109,6 +119,11 @@ In case specific DICOM tags need to be overwritten with fixed values use the "--
 uglify --verbose --modify "PatientID=PAT001" --modify "PatientName=PAT001" -o /tmp/output example.nii.gz
 ```
 
+Data provided with the '-i,--raw-data' option (or provided at the end) are encoded as unsigned short values which is suitable for most raw image data. The option '-m,--mask-data' should be used instead if the image provided is a mask and no scaling of the intensities should be applied. Mask volumes are encoded in the input format, usually 0 for background and 1 for the first label.
+
+```bash
+./uglify -m data/ISLES-2022/derivatives/sub-strokecase0001 -o /tmp/bla/
+```
 
 ### Build
 
@@ -117,6 +132,18 @@ Use cmake and create either a 'Release' (fast) or a 'Debug' build.
 ```bash
 cmake -DCMAKE_BUILD_TYPE=Debug .
 make
+./uglify -h
+Allowed options:
+  -h [ --help ]          UGLIFY: Convert a BIDS like folder to DICOM.
+  -V [ --version ]       Print the version number.
+  -v [ --verbose ]       Print more verbose output during processing.
+  -i [ --raw-data ] arg  Folder with nii.gz and .json files, or a single 
+                         .nii/.nii.gz file.
+  -m [ --mask-data ] arg Folder with nii.gz and .json files, or a single 
+                         .nii/.nii.gz file.
+  -o [ --outdir ] arg    Output directory for DICOM files
+  -e [ --modify ] arg    Modify individual DICOM tags ("PatientID=MEME"). This 
+                         option can be used more than once.
 ```
 
 To convert a folder like ISLES-2022 ([DOI](https://doi.org/10.5281/zenodo.7153326), [[arXiv](https://arxiv.org/abs/2206.06694)):
@@ -147,9 +174,8 @@ Each of the sub-directories contains an individual series of DICOM files with th
 The 'mapping.csv' contains DICOM identifiers (generated randomly):
 
 ```csv
-PatientID,EventName,AccessionNumber,StudyID
-strokecase0001,0001,E594E1ED67,E594E1ED67
-strokecase0002,0001,2FB096749484,2FB096749484
+subjectid,eventname,AccessionNumber,StudyID,StudyInstanceUID
+"strokecase0001","0001","0BFC6DC34FC9","0BFC6DC34FC9",1.3.6.1.4.1.45037.293108160657373275758438834236443259654
 ...
 ```
 
